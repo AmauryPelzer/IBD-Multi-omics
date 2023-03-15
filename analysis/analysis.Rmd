@@ -1,0 +1,275 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+# Prepare the environment
+```{r}
+library(stringr)
+library(KEGGREST)
+library(clusterProfiler)
+library(dplyr)
+library(org.EcK12.eg.db)
+library(ggplot2)
+```
+
+# Read the data 
+```{r}
+#to go one level back to get the preprocessed data
+setwd('..')
+#read data from file
+sampleLabels <- read.csv("preprocessing/output/metaData",sep = "\t")
+mgxCount <- read.csv("preprocessing/output/mgxData",sep = "\t",header = TRUE)
+
+# Separate CD, UC and nonIBD
+cd <- sampleLabels[sampleLabels$diagnosis=="CD",]
+uc <- sampleLabels[sampleLabels$diagnosis=="UC",]
+nonIBD <- sampleLabels[sampleLabels$diagnosis=="nonIBD",]
+
+# Select metagenomics data from CD, UC and nonIBD
+metagenomics_cd <- subset(mgxCount, select= cd$External.ID)
+metagenomics_uc <- subset(mgxCount, select= uc$External.ID)
+metagenomics_nonIBD <- subset(mgxCount, select= nonIBD$External.ID)
+
+```
+
+# Compute statistical significance (using t-test) for CD disease
+```{r}
+pvalue_PW_cd = NULL # Empty list for the p-values
+tstat_PW_cd = NULL # Empty list of the t test statistics
+regulation_PW_cd = NULL # Empty list for the factor: over-represented and under-represented
+score_PW_cd = NULL
+
+for(i in 1 : nrow(metagenomics_nonIBD)) { # For each gene : 
+	x = metagenomics_nonIBD[i,] # control of gene number i
+	y = metagenomics_cd[i,] # CD of gene number i
+	
+	# Compute t-test between the two conditions
+	t = t.test(x, y)
+	
+	# Put the current p-value in the pvalues list
+  pvalue_PW_cd[i] = t$p.value
+	# Put the current t-statistic in the tstats list
+	tstat_PW_cd[i] = t$statistic
+	
+	score_PW_cd[i] = abs(rowMeans(x)-rowMeans(y))
+	
+	# Put the status (over- or under-represented) in regulation list
+	if (rowMeans(x)<rowMeans(y)){
+	  regulation_PW_cd[i] = "Over-represented"
+	}
+	else{
+	  regulation_PW_cd[i] = "Under-represented"
+	}
+}
+
+```
+
+# Compute statistical significance (using t-test) for UC disease
+```{r}
+pvalue_PW_uc = NULL # Empty list for the p-values
+tstat_PW_uc = NULL # Empty list of the t test statistics
+regulation_PW_uc = NULL # Empty list for the factor: over-represented and under-represented
+score_PW_uc = NULL
+
+for(i in 1 : nrow(metagenomics_nonIBD)) { # For each gene : 
+	x = metagenomics_nonIBD[i,] # control of gene number i
+	y = metagenomics_uc[i,] # UC of gene number i
+	
+	# Compute t-test between the two conditions
+	t = t.test(x, y)
+	
+	# Put the current p-value in the pvalues list
+	pvalue_PW_uc[i] = t$p.value
+	# Put the current t-statistic in the tstats list
+	tstat_PW_uc[i] = t$statistic
+	
+	score_PW_uc[i] = abs(rowMeans(x)-rowMeans(y))
+	
+	# Put the status (over- or under-represented) in regulation list
+	if (rowMeans(x)<rowMeans(y)){
+	  regulation_PW_uc[i] = "Over-represented"
+	}
+	else{
+	  regulation_PW_uc[i] = "Under-represented"
+	}
+}
+
+```
+
+# Select statistically significant enzymes
+```{r}
+#for CD
+metagenomics_cd <- cbind(mgxCount[,c(1:3)],metagenomics_cd)
+dePW.CD <- metagenomics_cd[which(pvalue_PW_cd<0.05),]
+dePW.CD$pvalue <- pvalue_PW_cd[which(pvalue_PW_cd<0.05)]
+dePW.CD$regulation <- regulation_PW_cd[which(pvalue_PW_cd<0.05)]
+dePW.CD$score <- score_PW_cd[which(pvalue_PW_cd<0.05)]
+dePW.CD <- dePW.CD [,c("Gene.Family","Genus", "Species", "pvalue","regulation","score")]
+
+#for UC
+metagenomics_uc <- cbind(mgxCount[,c(1:3)],metagenomics_uc)
+dePW.UC <- metagenomics_uc[which(pvalue_PW_uc<0.05),]
+dePW.UC$pvalue <- pvalue_PW_uc[which(pvalue_PW_uc<0.05)]
+dePW.UC$regulation <- regulation_PW_uc[which(pvalue_PW_uc<0.05)]
+dePW.UC$score <- score_PW_uc[which(pvalue_PW_uc<0.05)]
+dePW.UC <- dePW.UC [,c("Gene.Family","Genus", "Species", "pvalue","regulation","score")]
+
+```
+
+# Bar plot to see which organism has how many significantly changed enzymes for CD disease
+```{r}
+###### group by organism having number of enzymes for CD disease #####
+groupsCD <- dePW.CD %>% group_by(Species) %>% 
+            summarise(enzyme_count=n(),
+            .groups = 'drop')
+          
+groupsCD <- groupsCD[order(-groupsCD$enzyme_count),]
+groupsCD <- groupsCD [c(1:20),]
+
+ggplot(groupsCD, aes(reorder( Species,enzyme_count), enzyme_count)) + 
+      geom_bar(stat = "identity")+
+      scale_fill_gradient2(low = "#0000ff", 
+                       mid = "#ff0000",
+                       high= "yellow",
+                       midpoint = 0.1) + 
+      coord_flip() +
+      labs(x = "Nof significantly changed enzymes (CD)", y = "Species")
+
+```
+
+# Bar plot to see which organism has how many significantly changed enzymes for UC disease
+```{r}
+##### group by organism having number of enzymes for UC disease #####
+groupsUC <- dePW.UC %>% group_by(Species) %>% 
+          summarise(enzyme_count=n(),
+            .groups = 'drop')
+          
+groupsUC <- groupsUC[order(-groupsUC$enzyme_count),]
+groupsUC <- groupsUC [c(1:20),]
+
+ggplot(groupsUC, aes(reorder( Species,enzyme_count), enzyme_count)) + 
+      geom_bar(stat = "identity")+
+      scale_fill_gradient2(low = "#0000ff", 
+                           mid = "#ff0000",
+                           high= "yellow",
+                           midpoint = 0.1) + 
+     coord_flip() +
+     labs(x = "Nof significantly changed enzymes (UC)", y = "Species")
+
+```
+
+# bar plot for genus level for CD disease
+```{r}
+#we can also see the distribution based on the genus level
+groupsGenus <- dePW.CD %>% group_by(Genus) %>% 
+          summarise(enzyme_count=n(),
+            .groups = 'drop')
+          
+groupsGenus <- groupsGenus[order(-groupsGenus$enzyme_count),]
+groupsGenus <- groupsGenus [c(1:20),]
+
+ggplot(groupsGenus, aes(reorder(Genus, enzyme_count), enzyme_count)) + 
+  geom_bar(stat = "identity")+
+  scale_fill_gradient2(low = "#0000ff", 
+                       mid = "#ff0000",
+                       high= "yellow",
+                       midpoint = 0.1) + 
+  coord_flip() +
+  labs(x = "Nof significantly changed enzymes", y = "Genus")
+
+
+```
+
+# get the subset based on most dominant organism for both CD and UC 
+```{r}
+
+# Subset Barnesiella_intestinihominis for CD
+deg.CD.sub <- dePW.CD[grepl("Barnesiella_intestinihominis", dePW.CD$Species, fixed = TRUE),]
+
+# Subset Bacteroides_xylanisolvens for CD
+deg.UC.sub <- dePW.UC[grepl("Bacteroides_xylanisolvens", dePW.UC$Species, fixed = TRUE),]
+
+```
+
+
+# Convert EC numbers to Entrez IDs for CD
+```{r}
+
+#remove gene family definition from EC codes 
+deg.CD.sub$Gene.Family <- sub(":.*", "", deg.CD.sub$Gene.Family)
+
+# Convert EC numbers to Entrez IDs
+gene.CD.eco <- clusterProfiler::bitr(deg.CD.sub$Gene.Family, fromType = "ENZYME", toType = "ENTREZID", OrgDb = org.EcK12.eg.db)
+
+#one to many mapping we will take only firts hits
+#filter out double gene symbols
+gene.CD.eco <- gene.CD.eco %>% distinct (gene.CD.eco$ENZYME, .keep_all = TRUE)
+
+#add "ncbi-geneid:" term to the beginning
+geneList.CD <- sub("^", "ncbi-geneid:", gene.CD.eco$ENTREZID)
+
+#convert ENTREZ ID to KEGG ids
+gene.CD.kID <- keggConv("eco", geneList.CD)
+
+#remove 'eco"
+gene.CD.kID <- gsub("eco:", "", gene.CD.kID)
+
+```
+
+# Pathway Enrichment Analysis for CD
+```{r}
+# Perform KEGG pathway over-representation analysis
+# supported organism listed in 'http://www.genome.jp/kegg/catalog/org_list.html'
+kk.CD <- clusterProfiler::enrichKEGG(gene = as.character(gene.CD.kID),
+                          organism     = 'eco',
+                          pvalueCutoff = 0.05)
+
+# visualize enrichment results
+kk.CD@result[which(kk.CD@result$p.adjust < 0.05),] %>% 
+  ggplot(aes(reorder(Description, Count), Count)) + 
+  geom_col(aes(fill = p.adjust)) + 
+  scale_fill_gradient2(low = "#0000ff", mid = "#ff0000", high= "yellow", midpoint = 0.1) +
+  coord_flip() +
+  labs(x = "Pathways (CD)", y = "Gene count")
+
+```
+# Convert EC numbers to Entrez IDs for UC
+```{r}
+
+#remove gene family definition from EC codes 
+deg.UC.sub$Gene.Family <- sub(":.*", "", deg.UC.sub$Gene.Family)
+
+# Convert EC numbers to Entrez IDs
+gene.UC.eco <- clusterProfiler::bitr(deg.UC.sub$Gene.Family, fromType = "ENZYME", toType = "ENTREZID", OrgDb = org.EcK12.eg.db)
+
+#one to many mapping we will take only firts hits
+#filter out double gene symbols
+gene.UC.eco <- gene.UC.eco %>% distinct (gene.UC.eco$ENTREZID, .keep_all = TRUE)
+
+#add "ncbi-geneid:" term to the beginning
+geneList.UC <- sub("^", "ncbi-geneid:", gene.UC.eco$ENTREZID)
+
+#convert ENTREZ ID to KEGG ids
+gene.UC.kID <- keggConv("eco", geneList.UC)
+
+#remove 'eco"
+gene.UC.kID <- gsub("eco:", "", gene.UC.kID)
+
+```
+
+# Pathway Enrichment Analysis for UC
+```{r}
+# Perform KEGG pathway over-representation analysis
+kk.UC <- clusterProfiler::enrichKEGG(gene = as.character(gene.UC.kID),
+                        organism     = 'eco',
+                        pvalueCutoff = 0.05)
+
+# visualize enrichment results
+kk.UC@result[which(kk.UC@result$p.adjust < 0.05 & kk.UC@result$qvalue < 0.2),] %>% 
+  ggplot(aes(reorder(Description, Count), Count)) + 
+  geom_col(aes(fill = p.adjust)) + 
+  scale_fill_gradient2(low = "#0000ff", mid = "#ff0000", high= "yellow", midpoint = 0.1) +
+  coord_flip() +
+  labs(x = "Pathways (UC)", y = "Gene count")
+
+```

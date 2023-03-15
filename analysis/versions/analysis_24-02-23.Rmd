@@ -1,0 +1,197 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+# Prepare the environment
+```{r}
+
+library(stringr)
+library(KEGGREST)
+library(dplyr)
+library(org.Hs.eg.db)
+setwd("C:/Users/duygu/OneDrive/Desktop/Metagenome-Metabolome analysis/analysis_scripts")
+#setwd(dirname(getActiveDocumentContext()$path)) not working corectly so the below is alternative
+```
+
+# Read the data 
+```{r}
+#read data from file
+sampleLabels <- read.csv("preprocessing/output/metaData",sep = "\t")
+mgxCount <- read.csv("preprocessing/output/mgxData",sep = "\t",header = TRUE)
+
+#assign first column as row names 
+rownames(mgxCount) <- mgxCount[,1]
+#then delete the first column representing gene families
+mgxCount <- mgxCount [,-1]
+
+# Remove genes which has all zero values for all samples then start DE analysis
+mgxCount[is.na(mgxCount)] <- 0
+nonzero <- rowSums(mgxCount) > 0
+mgxCount %<>% .[nonzero,]
+
+# Separate CD, UC and nonIBD
+cd <- sampleLabels[sampleLabels$diagnosis=="CD",]
+uc <- sampleLabels[sampleLabels$diagnosis=="UC",]
+nonIBD <- sampleLabels[sampleLabels$diagnosis=="nonIBD",]
+
+# Select metagenomics data from CD, UC and nonIBD
+metagenomics_cd <- subset(mgxCount, select= cd$External.ID)
+metagenomics_uc <- subset(mgxCount, select= uc$External.ID)
+metagenomics_nonIBD <- subset(mgxCount, select= nonIBD$External.ID)
+
+```
+
+# Compute statistical significance (using t-test) for CD disease
+```{r}
+pvalue_PW_cd = NULL # Empty list for the p-values
+tstat_PW_cd = NULL # Empty list of the t test statistics
+regulation_PW_cd = NULL # Empty list for the factor: over-represented and under-represented
+score_PW_cd = NULL
+
+for(i in 1 : nrow(metagenomics_nonIBD)) { # For each gene : 
+	x = metagenomics_nonIBD[i,] # control of gene number i
+	y = metagenomics_cd[i,] # CD of gene number i
+	
+	# Compute t-test between the two conditions
+	t = t.test(x, y)
+	
+	# Put the current p-value in the pvalues list
+  pvalue_PW_cd[i] = t$p.value
+	# Put the current t-statistic in the tstats list
+	tstat_PW_cd[i] = t$statistic
+	
+	score_PW_cd[i] = abs(rowMeans(x)-rowMeans(y))
+	
+	# Put the status (over- or under-represented) in regulation list
+	if (rowMeans(x)<rowMeans(y))
+	{
+	  regulation_PW_cd[i] = "Over-represented"
+	}
+	else
+	{
+	  regulation_PW_cd[i] = "Under-represented"
+	}
+}
+#padjust_PW_cd = p.adjust(pvalue_PW_cd, method="BH")
+
+```
+
+# Compute statistical significance (using t-test) for UC disease
+```{r}
+pvalue_PW_uc = NULL # Empty list for the p-values
+tstat_PW_uc = NULL # Empty list of the t test statistics
+regulation_PW_uc = NULL # Empty list for the factor: over-represented and under-represented
+score_PW_uc = NULL
+
+for(i in 1 : nrow(metagenomics_nonIBD)) { # For each gene : 
+	x = metagenomics_nonIBD[i,] # control of gene number i
+	y = metagenomics_uc[i,] # UC of gene number i
+	
+	# Compute t-test between the two conditions
+	t = t.test(x, y)
+	
+	# Put the current p-value in the pvalues list
+	pvalue_PW_uc[i] = t$p.value
+	# Put the current t-statistic in the tstats list
+	tstat_PW_uc[i] = t$statistic
+	
+	score_PW_uc[i] = abs(rowMeans(x)-rowMeans(y))
+	
+	# Put the status (over- or under-represented) in regulation list
+	if (rowMeans(x)<rowMeans(y))
+	{
+	  regulation_PW_uc[i] = "Over-represented"
+	}
+	else
+	{
+	  regulation_PW_uc[i] = "Under-represented"
+	}
+}
+#padjust_PW_uc = p.adjust(pvalue_PW_uc, method="BH")
+
+```
+
+# Select statistically significant enzymes
+```{r}
+#for CD
+dePW.CD <- metagenomics_cd[which(pvalue_PW_cd<0.05),]
+dePW.CD$pvalue <- pvalue_PW_cd[which(pvalue_PW_cd<0.05)]
+dePW.CD$regulation <- regulation_PW_cd[which(pvalue_PW_cd<0.05)]
+dePW.CD$score <- score_PW_cd[which(pvalue_PW_cd<0.05)]
+
+#for UC
+dePW.UC <- metagenomics_uc[which(pvalue_PW_uc<0.05),]
+dePW.UC$pvalue <- pvalue_PW_uc[which(pvalue_PW_uc<0.05)]
+dePW.UC$regulation <- regulation_PW_uc[which(pvalue_PW_uc<0.05)]
+dePW.UC$score <- score_PW_uc[which(pvalue_PW_uc<0.05)]
+
+#add row names as a first column
+dePW.CD$Gene.Family <- row.names(dePW.CD)
+#add row names as a first column
+dePW.UC$Gene.Family <- row.names(dePW.UC)
+```
+
+# Convert EC numbers to Entrez IDs
+```{r}
+
+#remove gene family definition from EC codes 
+dePW.CD$Gene.Family <- sub(":.*", "", dePW.CD$Gene.Family)
+
+# Convert EC numbers to Entrez IDs
+gene.CD.hsa <- clusterProfiler::bitr(dePW.CD$Gene.Family, fromType = "ENZYME", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+gene.CD.eco <- clusterProfiler::bitr(dePW.CD$Gene.Family, fromType = "ENZYME", toType = "ENTREZID", OrgDb = org.EcK12.eg.db)
+#Warning: 61% of input gene IDs are fail to map...
+
+venn.diagram(
+  x = list(gene.CD.hsa$ENZYME,gene.CD.eco$ENZYME),
+  category.names = c("Set 1" , "Set 2 "),
+  filename = '#14_venn_diagramm2.png',
+  output=TRUE
+)
+
+
+## Bimap interface:
+x <- org.Hs.egENZYME
+# Get the entrez gene identifiers that are mapped to an EC number 
+mapped_genes <- mappedkeys(x)
+# Convert to a list
+xx <- as.list(x[mapped_genes])
+if(length(xx) > 0) {
+  # Get the ENZYME for the first five genes
+  xx[1:5]
+  # Get the first one
+  xx[[1]]
+}
+
+# For the reverse map:
+# Convert to a list
+xx <- as.list(org.Hs.egENZYME2EG)
+if(length(xx) > 0){
+  # Gets the entrez gene identifiers for the first five enzyme
+  #commission numbers
+  xx[1:5]
+  # Get the first one
+  xx[[1]]
+}
+
+#one to many mapping we will take only firts hits
+#filter out double gene symbols
+gene.CD <- gene.CD %>% distinct (gene.CD$ENZYME, .keep_all = TRUE)
+
+#convert ENTREZ ID to KEGG ids
+gene.CD.kID <- keggConv("hsa", gene.CD$ENTREZID)
+
+```
+
+# Enrichment Analysis
+```{r}
+# Perform KEGG pathway over-representation analysis
+kk.CD.xyl <- enrichKEGG(gene = geneList.CD.xyl,
+                        organism     = 'eco',
+                        pvalueCutoff = 0.05)
+
+
+# Show results
+kk.CD.xyl@result
+```
+

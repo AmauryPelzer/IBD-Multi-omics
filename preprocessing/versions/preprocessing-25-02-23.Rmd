@@ -1,0 +1,103 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Preprocessing step includes filter out samples from metadata of the study
+Since we are only focusing on metagenomics samples
+
+# Install and load required libraries  and setup environment
+```{r}
+library(rstudioapi)
+library(dplyr)
+
+#setwd(dirname(getActiveDocumentContext()$path)) not working corectly so the below is alternative
+setwd("C:/Users/duygu/OneDrive/Desktop/Metagenome-Metabolome analysis/analysis/preprocessing")
+```
+
+# Read metadata and filter out by data type
+```{r}
+#read metadata
+metaData <- read.csv("data/hmp2_metadata.csv")
+#filter out samples by data type column 
+metaData <- metaData[metaData$data_type== "metagenomics",]
+#before having applied more filtering options we need to bacup data
+#metaData.backup <- metaData
+#samples have different visit numbers so we need to take one of them as a baseline
+metaData <- metaData[metaData$visit_num== 4,]
+#filter out columns 
+#metaData <- metaData [,c(2,3,5)]
+metaData <- metaData [,c("External.ID","Participant.ID","diagnosis")]
+#to remove _p from sample names
+#metaData$External.ID <- sapply(strsplit(metaData$External.ID,"_"), `[`, 1)
+
+```
+
+# Read metagenomic data and filter out by selected samples
+```{r}
+#read metagenomics data 
+mgxData <- read.csv("data/ecs_3.tsv", sep = "\t")
+mgxData.backup <- mgxData 
+
+#filter out rows which is not assigned and named ungrouped
+mgxData <- mgxData %>% dplyr:: filter(!grepl('UNGROUPED|UNMAPPED', Feature.Sample))
+#take only first row for each group of row to perform community-level pathway analysis 
+mgxData <- mgxData %>% dplyr:: filter(!grepl("\\|", Feature.Sample)) # take rows not containing "|" character
+#remove the first row containing column names since it is already in col names
+mgxData <- mgxData [-1,]
+
+#remove "_level4ec" from colnames of mgxData
+colnames(mgxData) <- sub("_level4ec.*", "", colnames(mgxData))
+
+```
+
+# organize metaData and metagenomic data 
+```{r}
+
+features <- mgxData[,1]
+
+#select samples that only exist in metadata
+mgxData <- mgxData[names(mgxData) %in% metaData$External.ID] 
+
+#there is one sample which does not exist in metadata so we need to delete it 
+#see difference between two sample vectors
+notExistSample <- setdiff( metaData$External.ID,colnames(mgxData))
+
+#delete not exist sample from metadata
+metaData <- metaData [!(metaData$External.ID==notExistSample),]
+
+#order both metaData and mgxData based on sample names
+metaData <- metaData[order(metaData$External.ID),]
+mgxData <- mgxData[,order(colnames (mgxData))]
+
+# Check whether sample names are in same order
+all(colnames(mgxData) == metaData$External.ID) # FALSE
+
+#bind feature column to the beginning of data frame
+mgxData <- cbind(features, mgxData)
+#change column name
+colnames(mgxData)[1] <- "Gene.Family"
+```
+
+# filter gene familys which has all zero values across all samples or samples across all genes
+```{r}
+#remove gene families which have all zero values across all samples then start DE analysis
+#it gives error look again
+
+
+# Remove genes which has all zero values for all samples then start DE analysis
+mgxData[is.na(mgxData)] <- 0
+nonzero <- rowSums(mgxData) > 0
+mgxData %<>% .[nonzero,]
+
+
+
+```
+
+# export preprocessed data to file
+```{r}
+write.table(metaData, "output/metaData", sep = "\t",row.names = FALSE,quote=FALSE)
+write.table(mgxData, "output/mgxData", sep = "\t",row.names = FALSE,quote=FALSE )
+
+```
+

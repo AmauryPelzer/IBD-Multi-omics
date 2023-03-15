@@ -1,0 +1,5 @@
+# Ignore metadata
+hmp2_metadata.csv
+
+# Ignore count data
+ecs_3.tsv
