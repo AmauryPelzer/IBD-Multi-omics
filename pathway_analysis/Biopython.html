@@ -14294,54 +14294,6 @@ a.anchor-link {
 </div>
 </div>
 
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell   ">
-<div class="jp-Cell-inputWrapper">
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[&nbsp;]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-     <div class="CodeMirror cm-s-jupyter">
-<div class=" highlight hl-ipython3"><pre><span></span><span class="n">Mgx_EC</span>
-</pre></div>
-
-     </div>
-</div>
-</div>
-</div>
-
-<div class="jp-Cell-outputWrapper">
-
-
-<div class="jp-OutputArea jp-Cell-outputArea">
-
-<div class="jp-OutputArea-child">
-
-    
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[&nbsp;]:</div>
-
-
-
-
-<div class="jp-RenderedText jp-OutputArea-output jp-OutputArea-executeResult" data-mime-type="text/plain">
-<pre>0         1.1.1.1
-1       1.1.1.100
-2       1.1.1.103
-3       1.1.1.105
-4       1.1.1.107
-          ...    
-2444      7.5.2.4
-2445      7.5.2.6
-2446      7.6.2.2
-2447      7.6.2.5
-2448      7.6.2.7
-Name: 0, Length: 2449, dtype: object</pre>
-</div>
-
-</div>
-
-</div>
-
-</div>
-
 </div>
 <div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
@@ -14350,20 +14302,29 @@ Name: 0, Length: 2449, dtype: object</pre>
 </blockquote>
 
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell   ">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs  ">
 <div class="jp-Cell-inputWrapper">
 <div class="jp-InputArea jp-Cell-inputArea">
 <div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[&nbsp;]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="kn">from</span> <span class="nn">Bio.KEGG</span> <span class="kn">import</span> <span class="n">REST</span>
-<span class="kn">from</span> <span class="nn">Bio.KEGG</span> <span class="kn">import</span> <span class="n">Enzyme</span>
-<span class="n">request</span> <span class="o">=</span> <span class="n">REST</span><span class="o">.</span><span class="n">kegg_get</span><span class="p">(</span><span class="n">Mgx_EC</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-<span class="nb">open</span><span class="p">(</span><span class="s2">&quot;ec_5.4.2.2.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
-<span class="n">records</span> <span class="o">=</span> <span class="n">Enzyme</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="s2">&quot;ec_5.4.2.2.txt&quot;</span><span class="p">))</span>
-<span class="n">record</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">records</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-<span class="nb">print</span> <span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">pathway</span><span class="p">)</span>
-<span class="c1"># print (record.pathway[...][1])</span>
+<span class="kn">import</span> <span class="nn">json</span>
+
+<span class="n">pathways_dict</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="k">for</span> <span class="n">ec_number</span> <span class="ow">in</span> <span class="n">Mgx_EC</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">ec_number</span><span class="o">.</span><span class="n">islower</span><span class="p">():</span> <span class="c1"># against Bad request error from preliminary EC codes (e.g. &quot;1.3.1.n3&quot; -&gt; Mgx_EC[430] )</span>
+        <span class="n">pathways</span> <span class="o">=</span> <span class="n">REST</span><span class="o">.</span><span class="n">kegg_link</span><span class="p">(</span><span class="s2">&quot;pathway&quot;</span><span class="p">,</span> <span class="n">ec_number</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">pathways</span> <span class="o">==</span> <span class="p">[</span><span class="s2">&quot;&quot;</span><span class="p">]:</span> <span class="c1"># against no responses to request</span>
+            <span class="k">for</span> <span class="n">pathway</span> <span class="ow">in</span> <span class="n">pathways</span><span class="p">:</span>
+                <span class="n">pathway_id</span><span class="p">,</span> <span class="n">pathway_name</span> <span class="o">=</span> <span class="n">pathway</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">path:&quot;</span><span class="p">)</span>
+                <span class="n">pathway_id</span> <span class="o">=</span> <span class="n">pathway_id</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;:&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">pathway_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">pathways_dict</span><span class="p">:</span>
+                    <span class="n">pathways_dict</span><span class="p">[</span><span class="n">pathway_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">pathways_dict</span><span class="p">[</span><span class="n">pathway_id</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pathway_name</span><span class="p">)</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;pathways_dict.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+    <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">pathways_dict</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>  <span class="c1"># encode dict into JSON</span>
 </pre></div>
 
      </div>
@@ -14371,29 +14332,28 @@ Name: 0, Length: 2449, dtype: object</pre>
 </div>
 </div>
 
-<div class="jp-Cell-outputWrapper">
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h2 id="Loading-the-dictionnary-of-pathways">Loading the dictionnary of pathways<a class="anchor-link" href="#Loading-the-dictionnary-of-pathways">&#182;</a></h2>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs  ">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[&nbsp;]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+     <div class="CodeMirror cm-s-jupyter">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="kn">import</span> <span class="nn">json</span>
 
+<span class="c1"># Open the file for reading</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;pathways_dict.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+    <span class="c1"># Load the dictionary from the file</span>
+    <span class="n">pathways_dict</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+</pre></div>
 
-<div class="jp-OutputArea jp-Cell-outputArea">
-
-<div class="jp-OutputArea-child">
-
-    
-    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-
-
-<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="application/vnd.jupyter.stderr">
-<pre>
-<span class="ansi-cyan-intense-fg ansi-bold">  File </span><span class="ansi-green-intense-fg ansi-bold">&#34;C:\Users\Amaury\AppData\Local\Temp\ipykernel_25268\1569918503.py&#34;</span><span class="ansi-cyan-intense-fg ansi-bold">, line </span><span class="ansi-green-intense-fg ansi-bold">7</span>
-<span class="ansi-yellow-intense-fg ansi-bold">    print (record.pathway[][1])</span>
-<span class="ansi-white-intense-fg ansi-bold">                          ^</span>
-<span class="ansi-red-intense-fg ansi-bold">SyntaxError</span><span class="ansi-red-intense-fg ansi-bold">:</span> invalid syntax
-</pre>
+     </div>
 </div>
 </div>
-
-</div>
-
 </div>
 
 </div>
