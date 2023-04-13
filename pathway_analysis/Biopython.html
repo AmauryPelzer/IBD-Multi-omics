@@ -14260,11 +14260,11 @@ a.anchor-link {
 
 <div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h2 id="Versions">Versions<a class="anchor-link" href="#Versions">&#182;</a></h2><p>Python:</p>
-<p>pandas:</p>
-<p>Pip:</p>
-<p>Biopython:</p>
-<p>keggtools:</p>
+<h2 id="Versions">Versions<a class="anchor-link" href="#Versions">&#182;</a></h2><p>Python: 3.7.2</p>
+<p>pandas: 1.3.5</p>
+<p>Pip: 23.0.1</p>
+<p>Biopython: 1.81</p>
+<p>keggtools: 1.0.1</p>
 
 </div>
 </div>
@@ -14323,7 +14323,7 @@ a.anchor-link {
                     <span class="n">pathways_dict</span><span class="p">[</span><span class="n">pathway_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
                 <span class="n">pathways_dict</span><span class="p">[</span><span class="n">pathway_id</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pathway_name</span><span class="p">)</span>
 
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;pathways_dict.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;pathways_dict.json&quot;</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
     <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">pathways_dict</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>  <span class="c1"># encode dict into JSON</span>
 </pre></div>
 
@@ -14346,7 +14346,7 @@ a.anchor-link {
 <div class=" highlight hl-ipython3"><pre><span></span><span class="kn">import</span> <span class="nn">json</span>
 
 <span class="c1"># Open the file for reading</span>
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;pathways_dict.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;pathways_dict.json&quot;</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
     <span class="c1"># Load the dictionary from the file</span>
     <span class="n">pathways_dict</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
 </pre></div>
@@ -14359,32 +14359,30 @@ a.anchor-link {
 </div>
 <div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h1 id="Enrichment-and-Testing">Enrichment and Testing<a class="anchor-link" href="#Enrichment-and-Testing">&#182;</a></h1><p>Install keggtools package from pip:</p>
-<blockquote><p>python -m pip install keggtools</p>
-</blockquote>
+<h1 id="Enrichment-and-Testing">Enrichment and Testing<a class="anchor-link" href="#Enrichment-and-Testing">&#182;</a></h1>
+</div>
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>Download all ec pathways from KEGG</p>
 
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell   ">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs  ">
 <div class="jp-Cell-inputWrapper">
 <div class="jp-InputArea jp-Cell-inputArea">
 <div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[&nbsp;]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
-<div class=" highlight hl-ipython3"><pre><span></span><span class="kn">from</span> <span class="nn">keggtools</span> <span class="kn">import</span> <span class="n">Enrichment</span>
+<div class=" highlight hl-ipython3"><pre><span></span><span class="kn">import</span> <span class="nn">requests</span>
 
-<span class="c1"># Add pathway object to list</span>
-<span class="n">pathway_list</span> <span class="o">=</span> <span class="n">records</span>
+<span class="c1"># Define the URL for the KEGG REST API</span>
+<span class="n">url</span> <span class="o">=</span> <span class="s1">&#39;http://rest.kegg.jp/list/pathway/ec&#39;</span>
 
-<span class="c1"># Init analysis with organism code</span>
-<span class="n">analysis</span> <span class="o">=</span> <span class="n">Enrichment</span><span class="p">(</span><span class="n">pathways</span><span class="o">=</span><span class="n">pathway_list</span><span class="p">)</span>
+<span class="c1"># Send a GET request to the URL to retrieve the pathway IDs</span>
+<span class="n">response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
 
-<span class="c1"># Study genes as list of entrez gene id&#39;s</span>
-<span class="n">study_genes</span> <span class="o">=</span> <span class="n">Mgx_EC</span>
-<span class="n">analysis</span><span class="o">.</span><span class="n">run_analysis</span><span class="p">(</span><span class="n">gene_list</span><span class="o">=</span><span class="n">study_genes</span><span class="p">)</span>
-
-<span class="c1"># to_dataframe method requires pandas installation</span>
-<span class="n">result</span> <span class="o">=</span> <span class="n">analysis</span><span class="o">.</span><span class="n">to_dataframe</span><span class="p">()</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
+<span class="c1"># Parse the response to get the pathway IDs</span>
+<span class="n">all_pathway_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\t</span><span class="s1">&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">text</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)]</span>
 </pre></div>
 
      </div>
@@ -14392,47 +14390,65 @@ a.anchor-link {
 </div>
 </div>
 
-<div class="jp-Cell-outputWrapper">
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>Attribute the related enzymes for all the pathways</p>
 
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs  ">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[&nbsp;]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+     <div class="CodeMirror cm-s-jupyter">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">json</span>
 
-<div class="jp-OutputArea jp-Cell-outputArea">
+<span class="n">ec_pathways</span> <span class="o">=</span> <span class="p">{}</span>
 
-<div class="jp-OutputArea-child">
-
+<span class="k">for</span> <span class="n">pathway_id</span> <span class="ow">in</span> <span class="n">all_pathway_ids</span><span class="p">:</span>
+    <span class="n">pathway_url</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;http://rest.kegg.jp/get/</span><span class="si">{</span><span class="n">pathway_id</span><span class="si">}</span><span class="s1">&#39;</span>
+    <span class="n">pathway_response</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">pathway_url</span><span class="p">)</span>
+    <span class="n">pathway_text</span> <span class="o">=</span> <span class="n">pathway_response</span><span class="o">.</span><span class="n">text</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+    <span class="c1"># find the lines containing enzyme information</span>
+    <span class="n">pattern</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;ENZYME\s+(.*?)\s+COMPOUND&quot;</span>
+    <span class="n">enzyme_lines</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">pathway_text</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">DOTALL</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">enzyme_lines</span><span class="p">:</span>
+        <span class="n">enzymes</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">lstrip</span><span class="p">()</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">enzyme_lines</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)]</span>
+        <span class="n">ec_pathways</span><span class="p">[</span><span class="n">pathway_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">enzymes</span>
+    
+    <span class="c1"># Write the pathway data to a file</span>
+    <span class="c1">#with open(f&#39;{pathway_id}.txt&#39;, &#39;w&#39;) as f:</span>
+    <span class="c1">#    f.write(pathway_text)</span>
 
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;all_pathways_enzymes_dict.json&quot;</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+    <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">ec_pathways</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>  <span class="c1"># encode dict into JSON</span>
+</pre></div>
 
-<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="application/vnd.jupyter.stderr">
-<pre>
-<span class="ansi-red-intense-fg ansi-bold">---------------------------------------------------------------------------</span>
-<span class="ansi-red-intense-fg ansi-bold">ValueError</span>                                Traceback (most recent call last)
-<span class="ansi-green-intense-fg ansi-bold">~\AppData\Local\Temp\ipykernel_25268\3666560864.py</span> in <span class="ansi-cyan-fg">&lt;module&gt;</span>
-<span class="ansi-green-fg">     12</span> 
-<span class="ansi-green-fg">     13</span> <span class="ansi-red-intense-fg ansi-bold"># to_dataframe method requires pandas installation</span>
-<span class="ansi-green-intense-fg ansi-bold">---&gt; 14</span><span class="ansi-yellow-intense-fg ansi-bold"> </span>result <span class="ansi-yellow-intense-fg ansi-bold">=</span> analysis<span class="ansi-yellow-intense-fg ansi-bold">.</span>to_dataframe<span class="ansi-yellow-intense-fg ansi-bold">(</span><span class="ansi-yellow-intense-fg ansi-bold">)</span>
-<span class="ansi-green-fg">     15</span> print<span class="ansi-yellow-intense-fg ansi-bold">(</span>result<span class="ansi-yellow-intense-fg ansi-bold">.</span>head<span class="ansi-yellow-intense-fg ansi-bold">(</span><span class="ansi-yellow-intense-fg ansi-bold">)</span><span class="ansi-yellow-intense-fg ansi-bold">)</span>
-
-<span class="ansi-green-intense-fg ansi-bold">c:\Tools\Python_3.7.2\lib\site-packages\keggtools\analysis.py</span> in <span class="ansi-cyan-fg">to_dataframe</span><span class="ansi-blue-intense-fg ansi-bold">(self)</span>
-<span class="ansi-green-fg">    327</span> 
-<span class="ansi-green-fg">    328</span>         <span class="ansi-red-intense-fg ansi-bold"># Check if summary exists</span>
-<span class="ansi-green-intense-fg ansi-bold">--&gt; 329</span><span class="ansi-yellow-intense-fg ansi-bold">         </span>self<span class="ansi-yellow-intense-fg ansi-bold">.</span>_check_analysis_result_exist<span class="ansi-yellow-intense-fg ansi-bold">(</span><span class="ansi-yellow-intense-fg ansi-bold">)</span>
-<span class="ansi-green-fg">    330</span>         summary_list <span class="ansi-yellow-intense-fg ansi-bold">=</span> <span class="ansi-yellow-intense-fg ansi-bold">[</span><span class="ansi-yellow-intense-fg ansi-bold">]</span>
-<span class="ansi-green-fg">    331</span>         <span class="ansi-green-intense-fg ansi-bold">for</span> result <span class="ansi-green-intense-fg ansi-bold">in</span> self<span class="ansi-yellow-intense-fg ansi-bold">.</span>result<span class="ansi-yellow-intense-fg ansi-bold">:</span>
-
-<span class="ansi-green-intense-fg ansi-bold">c:\Tools\Python_3.7.2\lib\site-packages\keggtools\analysis.py</span> in <span class="ansi-cyan-fg">_check_analysis_result_exist</span><span class="ansi-blue-intense-fg ansi-bold">(self)</span>
-<span class="ansi-green-fg">    151</span> 
-<span class="ansi-green-fg">    152</span>         <span class="ansi-green-intense-fg ansi-bold">if</span> <span class="ansi-green-intense-fg ansi-bold">not</span> self<span class="ansi-yellow-intense-fg ansi-bold">.</span>result <span class="ansi-green-intense-fg ansi-bold">or</span> len<span class="ansi-yellow-intense-fg ansi-bold">(</span>self<span class="ansi-yellow-intense-fg ansi-bold">.</span>result<span class="ansi-yellow-intense-fg ansi-bold">)</span> <span class="ansi-yellow-intense-fg ansi-bold">==</span> <span class="ansi-cyan-intense-fg ansi-bold">0</span><span class="ansi-yellow-intense-fg ansi-bold">:</span>
-<span class="ansi-green-intense-fg ansi-bold">--&gt; 153</span><span class="ansi-yellow-intense-fg ansi-bold">             </span><span class="ansi-green-intense-fg ansi-bold">raise</span> ValueError<span class="ansi-yellow-intense-fg ansi-bold">(</span><span class="ansi-blue-intense-fg ansi-bold">&#34;need to &#39;run_analysis&#39; first&#34;</span><span class="ansi-yellow-intense-fg ansi-bold">)</span>
-<span class="ansi-green-fg">    154</span> 
-<span class="ansi-green-fg">    155</span>     def get_subset(
-
-<span class="ansi-red-intense-fg ansi-bold">ValueError</span>: need to &#39;run_analysis&#39; first</pre>
+     </div>
+</div>
 </div>
 </div>
 
-</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs  ">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[&nbsp;]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+     <div class="CodeMirror cm-s-jupyter">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="kn">import</span> <span class="nn">json</span>
 
+<span class="c1"># Open the file for reading</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;all_pathways_enzymes_dict.json&quot;</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+    <span class="c1"># Load the dictionary from the file</span>
+    <span class="n">all_pathways_enzymes_dict</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+</pre></div>
+
+     </div>
+</div>
+</div>
 </div>
 
 </div>
