@@ -3,3 +3,8 @@ hmp2_metadata.csv
 
 # Ignore count data
 ecs_3.tsv
+
+# Ignore Rstudio project files
+.Rproj.user
+.RData
+metagenomics_analysis.Rproj

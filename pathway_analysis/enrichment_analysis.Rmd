@@ -1,0 +1,152 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+```{r}
+library(jsonlite)
+
+setwd('..')
+
+# Read JSON file into R object
+data <- fromJSON("C:/Users/Amaury/Downloads/metagenomics_analysis/pathway_analysis/data/all_pathways_enzymes_dict.json")
+```
+
+```{r}
+library(jsonlite)
+library(tidyr)
+
+# Convert JSON to data frame
+df <- as.data.frame(t(as.data.frame(data)))
+
+# Convert column names to variables
+df <- df %>%
+  rownames_to_column(var = "key") %>%
+  rename(value = 1)
+
+# Print the data frame
+print(df)
+```
+
+
+## Data Preparations
+
+The following section will prepare input data to be used in the analysis
+
+```{r read data,warning=FALSE, message=FALSE}
+# Read  the metagenomics data file
+mgxCount <- read.table(file = '../analysis/data/mgxData', sep = '\t', header = TRUE)
+# Read metadata file sample labels
+sampleLabels <- read.table(file = "../analysis/data/metaData", sep = '\t', stringsAsFactors = TRUE, header = TRUE)
+
+# ....
+rownames(mgxCount) <- mgxCount[,1]
+mgxCount <- mgxCount[, -1]
+
+# Check whether sample names are in same order
+all(colnames(mgxCount) == rownames(sampleLabels))
+sampleLabels$disease <- relevel(sampleLabels$disease,ref="nonIBD")
+```
+## Filtering Steps
+
+We will apply some filtering process to filter out genes in the input data
+
+```{r filtering,warning=FALSE, message=FALSE}
+# Remove genes which has all zero values for all samples then start DE analysis
+mgxCount[is.na(mgxCount)] <- 0
+nonzero <- rowSums(mgxCount) > 0
+mgxCount %<>% .[nonzero,]
+```
+
+## T-tests
+
+```{r}
+# Separate CD, UC and nonIBD
+cd <- sampleLabels[sampleLabels$diagnosis=="CD",]
+uc <- sampleLabels[sampleLabels$diagnosis=="UC",]
+nonIBD <- sampleLabels[sampleLabels$diagnosis=="nonIBD",]
+# Select metagenomics data from CD, UC and nonIBD
+metagenomics_cd <- subset(mgxCount, select= cd$External.ID)
+metagenomics_uc <- subset(mgxCount, select= uc$External.ID)
+metagenomics_nonIBD <- subset(mgxCount, select= nonIBD$External.ID)
+```
+
+```{r}
+# Compute statistical significance (using t-test)
+pvalue_cd = NULL # Empty list for the p-values
+tstat_cd = NULL # Empty list of the t test statistics
+regulation_cd = NULL # Empty list for the factor: over-represented and under-represented
+for(i in 1 : nrow(metagenomics_nonIBD)) { # For each gene : 
+	x = metagenomics_nonIBD[i,] # control of gene number i
+	y = metagenomics_cd[i,] # CD of gene number i
+	
+	# Compute t-test between the two conditions
+	t = t.test(x, y)
+	
+	# Put the current p-value in the pvalues list
+	pvalue_cd[i] = t$p.value
+	# Put the current t-statistic in the tstats list
+	tstat_cd[i] = t$statistic
+}
+#padjust_cd = p.adjust(pvalue_cd, method="BH", n= nrow(metagenomics_nonIBD))
+```
+
+```{r}
+# Compute statistical significance (using t-test)
+pvalue_uc = NULL # Empty list for the p-values
+tstat_uc = NULL # Empty list of the t test statistics
+regulation_uc = NULL # Empty list for the factor: over-represented and under-represented
+for(i in 1 : nrow(metagenomics_nonIBD)) { # For each gene : 
+	x = metagenomics_nonIBD[i,] # control of gene number i
+	y = metagenomics_uc[i,] # UC of gene number i
+	
+	# Compute t-test between the two conditions
+	t = t.test(x, y)
+	
+	# Put the current p-value in the pvalues list
+	pvalue_uc[i] = t$p.value
+	# Put the current t-statistic in the tstats list
+	tstat_uc[i] = t$statistic
+}
+#padjust_uc = p.adjust(pvalue_uc, method="BH")
+```
+
+```{r}
+# Select statistically significant enzymes
+deg.CD <- metagenomics_cd[which(pvalue_cd<0.05),]
+deg.CD$pvalue <- pvalue_cd[which(pvalue_cd<0.05)]
+deg.CD$regulation <- regulation_cd[which(pvalue_cd<0.05)]
+deg.UC <- metagenomics_uc[which(pvalue_uc<0.05),]
+deg.UC$pvalue <- pvalue_uc[which(pvalue_uc<0.05)]
+deg.UC$regulation <- regulation_uc[which(pvalue_uc<0.05)]
+```
+
+
+
+
+# Calculate the ORA score for each pathway, using the Fishers exact test.
+
+```{r}
+##Based on: https://www.pathwaycommons.org/guide/primers/statistics/fishers_exact_test/
+
+#Create a dataframe to store the required numbers in.
+Contingency_table <- data.frame(matrix(ncol=5,nrow=0, dimnames=list(NULL, c("EC.PW", "x", "m", "n", "k"))))
+counter = 1
+for (i in 1:nrow(showresults_CombinePW_data)) {
+   Contingency_table[counter,1] <- (showresults_CombinePW_data[i,2]) #EC.PW
+   Contingency_table[counter,2] <- (showresults_CombinePW_data[i,4]) ##x <- (number4) #Total differentially changed metabolites, also in a PW. (HMDBsInPWs)
+   Contingency_table[counter,3] <- (showresults_CombinePW_data[i,5]) ##m <- (number) #Total Metabolites in PW (TotalMetabolitesinPW)
+   Contingency_table[counter,4] <- (length(unique(mSet[,1])) - showresults_CombinePW_data[i,4]) ##n <- (number2) #Total Metabolites measured not in PW (DISTINCT all_HMDB - HMDBsInPWs)
+   Contingency_table[counter,5] <- length(unique(vector_HMDB)) ##k <- (number3) #Total differentially changed metabolites. (DISTINCT vector_HMDB)
+
+   counter <- counter + 1
+}
+
+# Calculate hypergeometric density p-value for all pathways.
+i <- 1:nrow(Contingency_table)
+probabilities <- dhyper(Contingency_table[i,2], Contingency_table[i,3], Contingency_table[i,4], Contingency_table[i,5], log = FALSE)
+
+```
+
