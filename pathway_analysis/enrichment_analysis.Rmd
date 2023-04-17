@@ -3,32 +3,11 @@ title: "R Notebook"
 output: html_notebook
 ---
 
+## Versions
 
+R version: 4.2.0
 
-```{r}
-library(jsonlite)
-
-setwd('..')
-
-# Read JSON file into R object
-data <- fromJSON("C:/Users/Amaury/Downloads/metagenomics_analysis/pathway_analysis/data/all_pathways_enzymes_dict.json")
-```
-
-```{r}
-library(jsonlite)
-library(tidyr)
-
-# Convert JSON to data frame
-df <- as.data.frame(t(as.data.frame(data)))
-
-# Convert column names to variables
-df <- df %>%
-  rownames_to_column(var = "key") %>%
-  rename(value = 1)
-
-# Print the data frame
-print(df)
-```
+jsonlite version: 1.8.4
 
 
 ## Data Preparations
@@ -36,19 +15,26 @@ print(df)
 The following section will prepare input data to be used in the analysis
 
 ```{r read data,warning=FALSE, message=FALSE}
+library(jsonlite)
+
+# Sets current path as working file path for all code chuncks
+knitr::opts_knit$set(root.dir = ".")
+
+# Read JSON file with all the pathways and the enzymes within into R object
+pathways.all <- fromJSON("data/all_pathways_enzymes_dict.json")
+
 # Read  the metagenomics data file
 mgxCount <- read.table(file = '../analysis/data/mgxData', sep = '\t', header = TRUE)
 # Read metadata file sample labels
-sampleLabels <- read.table(file = "../analysis/data/metaData", sep = '\t', stringsAsFactors = TRUE, header = TRUE)
+metaData <- read.table(file = "../analysis/data/metaData", sep = '\t', stringsAsFactors = TRUE, header = TRUE)
 
-# ....
+# Turns the first row of mgxData (Gene.Family) into row name
 rownames(mgxCount) <- mgxCount[,1]
 mgxCount <- mgxCount[, -1]
 
-# Check whether sample names are in same order
-all(colnames(mgxCount) == rownames(sampleLabels))
-sampleLabels$disease <- relevel(sampleLabels$disease,ref="nonIBD")
+#metaData$diagnosis <- relevel(metaData$diagnosis,ref="nonIBD")
 ```
+
 ## Filtering Steps
 
 We will apply some filtering process to filter out genes in the input data
@@ -57,89 +43,95 @@ We will apply some filtering process to filter out genes in the input data
 # Remove genes which has all zero values for all samples then start DE analysis
 mgxCount[is.na(mgxCount)] <- 0
 nonzero <- rowSums(mgxCount) > 0
-mgxCount %<>% .[nonzero,]
+mgxCount <- mgxCount[nonzero,]
+
+remove(nonzero)
 ```
 
 ## T-tests
 
 ```{r}
 # Separate CD, UC and nonIBD
-cd <- sampleLabels[sampleLabels$diagnosis=="CD",]
-uc <- sampleLabels[sampleLabels$diagnosis=="UC",]
-nonIBD <- sampleLabels[sampleLabels$diagnosis=="nonIBD",]
+metaData.CD <- metaData[metaData$diagnosis=="CD",]
+metaData.UC <- metaData[metaData$diagnosis=="UC",]
+metaData.nonIBD <- metaData[metaData$diagnosis=="nonIBD",]
+
 # Select metagenomics data from CD, UC and nonIBD
-metagenomics_cd <- subset(mgxCount, select= cd$External.ID)
-metagenomics_uc <- subset(mgxCount, select= uc$External.ID)
-metagenomics_nonIBD <- subset(mgxCount, select= nonIBD$External.ID)
+mgxCount.CD <- subset(mgxCount, select=metaData.CD$External.ID)
+mgxCount.UC <- subset(mgxCount, select=metaData.UC$External.ID)
+mgxCount.nonIBD <- subset(mgxCount, select=metaData.nonIBD$External.ID)
+
+remove(metaData.CD, metaData.UC, metaData.nonIBD)
 ```
 
 ```{r}
 # Compute statistical significance (using t-test)
-pvalue_cd = NULL # Empty list for the p-values
-tstat_cd = NULL # Empty list of the t test statistics
-regulation_cd = NULL # Empty list for the factor: over-represented and under-represented
-for(i in 1 : nrow(metagenomics_nonIBD)) { # For each gene : 
-	x = metagenomics_nonIBD[i,] # control of gene number i
-	y = metagenomics_cd[i,] # CD of gene number i
+pValue.CD = NULL # Empty list for the p-values
+tStat.CD = NULL # Empty list of the t test statistics
+
+for(i in 1 : nrow(mgxCount.nonIBD)) { # For each gene : 
+	x = mgxCount.nonIBD[i,] # control of gene number i
+	y = mgxCount.CD[i,] # CD of gene number i
 	
 	# Compute t-test between the two conditions
 	t = t.test(x, y)
 	
 	# Put the current p-value in the pvalues list
-	pvalue_cd[i] = t$p.value
-	# Put the current t-statistic in the tstats list
-	tstat_cd[i] = t$statistic
+	pValue.CD[i] = t$p.value
 }
-#padjust_cd = p.adjust(pvalue_cd, method="BH", n= nrow(metagenomics_nonIBD))
+#padjust_cd = p.adjust(pValue.CD, method="BH", n= nrow(mgxCount.nonIBD))
 ```
 
 ```{r}
 # Compute statistical significance (using t-test)
-pvalue_uc = NULL # Empty list for the p-values
-tstat_uc = NULL # Empty list of the t test statistics
-regulation_uc = NULL # Empty list for the factor: over-represented and under-represented
-for(i in 1 : nrow(metagenomics_nonIBD)) { # For each gene : 
-	x = metagenomics_nonIBD[i,] # control of gene number i
-	y = metagenomics_uc[i,] # UC of gene number i
+pValue.UC = NULL # Empty list for the p-values
+tStat.UC = NULL # Empty list of the t test statistics
+
+for(i in 1 : nrow(mgxCount.nonIBD)) { # For each gene : 
+	x = mgxCount.nonIBD[i,] # control of gene number i
+	y = mgxCount.UC[i,] # UC of gene number i
 	
 	# Compute t-test between the two conditions
 	t = t.test(x, y)
 	
 	# Put the current p-value in the pvalues list
-	pvalue_uc[i] = t$p.value
-	# Put the current t-statistic in the tstats list
-	tstat_uc[i] = t$statistic
+	pValue.UC[i] = t$p.value
 }
-#padjust_uc = p.adjust(pvalue_uc, method="BH")
+
+remove(t, x, y, i)
+#padjust_uc = p.adjust(pValue.UC, method="BH")
 ```
 
 ```{r}
 # Select statistically significant enzymes
-deg.CD <- metagenomics_cd[which(pvalue_cd<0.05),]
-deg.CD$pvalue <- pvalue_cd[which(pvalue_cd<0.05)]
-deg.CD$regulation <- regulation_cd[which(pvalue_cd<0.05)]
-deg.UC <- metagenomics_uc[which(pvalue_uc<0.05),]
-deg.UC$pvalue <- pvalue_uc[which(pvalue_uc<0.05)]
-deg.UC$regulation <- regulation_uc[which(pvalue_uc<0.05)]
+deg.CD <- mgxCount.CD[which(pValue.CD<0.05),]
+deg.CD$pvalue <- pValue.CD[which(pValue.CD<0.05)]
+deg.UC <- mgxCount.UC[which(pValue.UC<0.05),]
+deg.UC$pvalue <- pValue.UC[which(pValue.UC<0.05)]
+
+remove(pValue.CD, pValue.UC)
 ```
-
-
-
 
 # Calculate the ORA score for each pathway, using the Fishers exact test.
 
 ```{r}
 ##Based on: https://www.pathwaycommons.org/guide/primers/statistics/fishers_exact_test/
 
+# Get the row names and split them at the colon
+deg.UC.EC <- row.names(deg.UC)
+deg.UC.EC <- lapply(strsplit(deg.UC.EC, ":"), "[[", 1)
+deg.CD.EC <- row.names(mgxCount.CD)
+deg.CD.UC <- lapply(strsplit(deg.CD.EC, ":"), "[[", 1)
+
 #Create a dataframe to store the required numbers in.
 Contingency_table <- data.frame(matrix(ncol=5,nrow=0, dimnames=list(NULL, c("EC.PW", "x", "m", "n", "k"))))
 counter = 1
-for (i in 1:nrow(showresults_CombinePW_data)) {
-   Contingency_table[counter,1] <- (showresults_CombinePW_data[i,2]) #EC.PW
-   Contingency_table[counter,2] <- (showresults_CombinePW_data[i,4]) ##x <- (number4) #Total differentially changed metabolites, also in a PW. (HMDBsInPWs)
-   Contingency_table[counter,3] <- (showresults_CombinePW_data[i,5]) ##m <- (number) #Total Metabolites in PW (TotalMetabolitesinPW)
-   Contingency_table[counter,4] <- (length(unique(mSet[,1])) - showresults_CombinePW_data[i,4]) ##n <- (number2) #Total Metabolites measured not in PW (DISTINCT all_HMDB - HMDBsInPWs)
-   Contingency_table[counter,5] <- length(unique(vector_HMDB)) ##k <- (number3) #Total differentially changed metabolites. (DISTINCT vector_HMDB)
+for (i in 1:length(pathways.all)) {
+   Contingency_table[counter,1] <- names(pathways.all[i]) #EC.PW
+   Contingency_table[counter,2] <- length(intersect(deg.UC.EC, pathways.all[[i]])) ##x <- (number4) #Total differentially changed metabolites, also in a PW. (HMDBsInPWs)
+   Contingency_table[counter,3] <- length(pathways.all[[i]]) ##m <- (number) #Total Metabolites in PW (TotalMetabolitesinPW)
+   Contingency_table[counter,4] <- nrow(mgxCount.UC) - length(intersect(deg.UC.EC, pathways.all[[i]])) ##n <- (number2) #Total Metabolites measured not in PW (DISTINCT all_HMDB - HMDBsInPWs)
+   Contingency_table[counter,5] <- nrow(deg.UC) ##k <- (number3) #Total differentially changed metabolites. (DISTINCT vector_HMDB)
 
    counter <- counter + 1
 }
@@ -148,5 +140,6 @@ for (i in 1:nrow(showresults_CombinePW_data)) {
 i <- 1:nrow(Contingency_table)
 probabilities <- dhyper(Contingency_table[i,2], Contingency_table[i,3], Contingency_table[i,4], Contingency_table[i,5], log = FALSE)
 
+pathwayAnalysis_results <- cbind(names(pathways.all), probabilities, pathways.all[])
+pathwayAnalysis_results_sorted <- pathwayAnalysis_results[  with(pathwayAnalysis_results, order(probabilities)),]
 ```
-
