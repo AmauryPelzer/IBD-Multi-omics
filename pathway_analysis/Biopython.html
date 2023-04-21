@@ -14359,7 +14359,8 @@ a.anchor-link {
 </div>
 <div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<h1 id="Enrichment-and-Testing">Enrichment and Testing<a class="anchor-link" href="#Enrichment-and-Testing">&#182;</a></h1>
+<h1 id="Enrichment-preparation">Enrichment preparation<a class="anchor-link" href="#Enrichment-preparation">&#182;</a></h1><p>The remaining steps will be done in R (cf. enrichment_analysis.Rmd)</p>
+
 </div>
 </div>
 <div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
@@ -14393,7 +14394,7 @@ a.anchor-link {
 </div>
 <div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<p>Attribute the related enzymes for all the pathways</p>
+<p>Attribute the related enzymes for all the pathways (also filters out pathways without enzymes)</p>
 
 </div>
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs  ">
@@ -14418,10 +14419,6 @@ a.anchor-link {
     <span class="k">if</span> <span class="n">enzyme_lines</span><span class="p">:</span>
         <span class="n">enzymes</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">lstrip</span><span class="p">()</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">enzyme_lines</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)]</span>
         <span class="n">ec_pathways</span><span class="p">[</span><span class="n">pathway_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">enzymes</span>
-    
-    <span class="c1"># Write the pathway data to a file</span>
-    <span class="c1">#with open(f&#39;{pathway_id}.txt&#39;, &#39;w&#39;) as f:</span>
-    <span class="c1">#    f.write(pathway_text)</span>
 
 <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;data/all_pathways_enzymes_dict.json&quot;</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
     <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">ec_pathways</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>  <span class="c1"># encode dict into JSON</span>
@@ -14444,6 +14441,88 @@ a.anchor-link {
 <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;data/all_pathways_enzymes_dict.json&quot;</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
     <span class="c1"># Load the dictionary from the file</span>
     <span class="n">all_pathways_enzymes_dict</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+</pre></div>
+
+     </div>
+</div>
+</div>
+</div>
+
+</div>
+<div class="jp-Cell-inputWrapper"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>Associate all the KEGG ec pathways with their name</p>
+
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell   ">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[&nbsp;]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+     <div class="CodeMirror cm-s-jupyter">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="kn">from</span> <span class="nn">bioservices</span> <span class="kn">import</span> <span class="n">KEGG</span>
+<span class="kn">import</span> <span class="nn">json</span>
+
+<span class="c1"># initialize the KEGG API object and pathway name dictionary</span>
+<span class="n">kegg</span> <span class="o">=</span> <span class="n">KEGG</span><span class="p">()</span>
+
+<span class="n">pathway_names</span> <span class="o">=</span> <span class="p">{}</span>
+
+<span class="c1"># define the EC pathway code</span>
+<span class="k">for</span> <span class="n">ec_code</span> <span class="ow">in</span> <span class="n">all_pathways_enzymes_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+    <span class="c1"># get the pathway information for the given EC code</span>
+    <span class="n">pathway_info</span> <span class="o">=</span> <span class="n">kegg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ec_code</span><span class="p">)</span>
+    <span class="c1"># extract the pathway name from the information</span>
+    <span class="n">pathway_name</span> <span class="o">=</span> <span class="n">pathway_info</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="c1"># split the string at the first occurrence of &#39;NAME&#39;</span>
+    <span class="n">pathway_name</span> <span class="o">=</span> <span class="n">pathway_name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;NAME&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="c1"># remove leading and trailing whitespace characters</span>
+    <span class="n">pathway_name</span> <span class="o">=</span> <span class="n">pathway_name</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="c1"># add the new pathway name entry to the dict</span>
+    <span class="n">pathway_names</span><span class="p">[</span><span class="n">ec_code</span><span class="p">]</span> <span class="o">=</span> <span class="n">pathway_name</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;data/ec_pathway_names_dict.json&quot;</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+    <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">pathway_names</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>  <span class="c1"># encode dict into JSON</span>
+</pre></div>
+
+     </div>
+</div>
+</div>
+</div>
+
+<div class="jp-Cell-outputWrapper">
+
+
+<div class="jp-OutputArea jp-Cell-outputArea">
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre>{&#39;ec00010&#39;: &#39;Glycolysis / Gluconeogenesis&#39;, &#39;ec00020&#39;: &#39;Citrate cycle (TCA cycle)&#39;, &#39;ec00030&#39;: &#39;Pentose phosphate pathway&#39;, &#39;ec00040&#39;: &#39;Pentose and glucuronate interconversions&#39;, &#39;ec00051&#39;: &#39;Fructose and mannose metabolism&#39;, &#39;ec00052&#39;: &#39;Galactose metabolism&#39;, &#39;ec00053&#39;: &#39;Ascorbate and aldarate metabolism&#39;, &#39;ec00500&#39;: &#39;Starch and sucrose metabolism&#39;, &#39;ec00520&#39;: &#39;Amino sugar and nucleotide sugar metabolism&#39;, &#39;ec00620&#39;: &#39;Pyruvate metabolism&#39;, &#39;ec00630&#39;: &#39;Glyoxylate and dicarboxylate metabolism&#39;, &#39;ec00640&#39;: &#39;Propanoate metabolism&#39;, &#39;ec00650&#39;: &#39;Butanoate metabolism&#39;, &#39;ec00660&#39;: &#39;C5-Branched dibasic acid metabolism&#39;, &#39;ec00562&#39;: &#39;Inositol phosphate metabolism&#39;, &#39;ec00190&#39;: &#39;Oxidative phosphorylation&#39;, &#39;ec00195&#39;: &#39;Photosynthesis&#39;, &#39;ec00710&#39;: &#39;Carbon fixation in photosynthetic organisms&#39;, &#39;ec00720&#39;: &#39;Carbon fixation pathways in prokaryotes&#39;, &#39;ec00680&#39;: &#39;Methane metabolism&#39;, &#39;ec00910&#39;: &#39;Nitrogen metabolism&#39;, &#39;ec00920&#39;: &#39;Sulfur metabolism&#39;, &#39;ec00061&#39;: &#39;Fatty acid biosynthesis&#39;, &#39;ec00062&#39;: &#39;Fatty acid elongation&#39;, &#39;ec00071&#39;: &#39;Fatty acid degradation&#39;, &#39;ec00073&#39;: &#39;Cutin, suberine and wax biosynthesis&#39;, &#39;ec00100&#39;: &#39;Steroid biosynthesis&#39;, &#39;ec00120&#39;: &#39;Primary bile acid biosynthesis&#39;, &#39;ec00121&#39;: &#39;Secondary bile acid biosynthesis&#39;, &#39;ec00140&#39;: &#39;Steroid hormone biosynthesis&#39;, &#39;ec00561&#39;: &#39;Glycerolipid metabolism&#39;, &#39;ec00564&#39;: &#39;Glycerophospholipid metabolism&#39;, &#39;ec00565&#39;: &#39;Ether lipid metabolism&#39;, &#39;ec00600&#39;: &#39;Sphingolipid metabolism&#39;, &#39;ec00590&#39;: &#39;Arachidonic acid metabolism&#39;, &#39;ec00591&#39;: &#39;Linoleic acid metabolism&#39;, &#39;ec00592&#39;: &#39;alpha-Linolenic acid metabolism&#39;, &#39;ec01040&#39;: &#39;Biosynthesis of unsaturated fatty acids&#39;, &#39;ec00230&#39;: &#39;Purine metabolism&#39;, &#39;ec00240&#39;: &#39;Pyrimidine metabolism&#39;, &#39;ec00250&#39;: &#39;Alanine, aspartate and glutamate metabolism&#39;, &#39;ec00260&#39;: &#39;Glycine, serine and threonine metabolism&#39;, &#39;ec00270&#39;: &#39;Cysteine and methionine metabolism&#39;, &#39;ec00280&#39;: &#39;Valine, leucine and isoleucine degradation&#39;, &#39;ec00290&#39;: &#39;Valine, leucine and isoleucine biosynthesis&#39;, &#39;ec00300&#39;: &#39;Lysine biosynthesis&#39;, &#39;ec00310&#39;: &#39;Lysine degradation&#39;, &#39;ec00220&#39;: &#39;Arginine biosynthesis&#39;, &#39;ec00330&#39;: &#39;Arginine and proline metabolism&#39;, &#39;ec00340&#39;: &#39;Histidine metabolism&#39;, &#39;ec00350&#39;: &#39;Tyrosine metabolism&#39;, &#39;ec00360&#39;: &#39;Phenylalanine metabolism&#39;, &#39;ec00380&#39;: &#39;Tryptophan metabolism&#39;, &#39;ec00400&#39;: &#39;Phenylalanine, tyrosine and tryptophan biosynthesis&#39;, &#39;ec00410&#39;: &#39;beta-Alanine metabolism&#39;, &#39;ec00430&#39;: &#39;Taurine and hypotaurine metabolism&#39;, &#39;ec00440&#39;: &#39;Phosphonate and phosphinate metabolism&#39;, &#39;ec00450&#39;: &#39;Selenocompound metabolism&#39;, &#39;ec00460&#39;: &#39;Cyanoamino acid metabolism&#39;, &#39;ec00470&#39;: &#39;D-Amino acid metabolism&#39;, &#39;ec00480&#39;: &#39;Glutathione metabolism&#39;, &#39;ec00510&#39;: &#39;N-Glycan biosynthesis&#39;, &#39;ec00513&#39;: &#39;Various types of N-glycan biosynthesis&#39;, &#39;ec00512&#39;: &#39;Mucin type O-glycan biosynthesis&#39;, &#39;ec00515&#39;: &#39;Mannose type O-glycan biosynthesis&#39;, &#39;ec00532&#39;: &#39;Glycosaminoglycan biosynthesis - chondroitin sulfate / dermatan sulfate&#39;, &#39;ec00534&#39;: &#39;Glycosaminoglycan biosynthesis - heparan sulfate / heparin&#39;, &#39;ec00531&#39;: &#39;Glycosaminoglycan degradation&#39;, &#39;ec00563&#39;: &#39;Glycosylphosphatidylinositol (GPI)-anchor biosynthesis&#39;, &#39;ec00601&#39;: &#39;Glycosphingolipid biosynthesis - lacto and neolacto series&#39;, &#39;ec00603&#39;: &#39;Glycosphingolipid biosynthesis - globo and isoglobo series&#39;, &#39;ec00604&#39;: &#39;Glycosphingolipid biosynthesis - ganglio series&#39;, &#39;ec00540&#39;: &#39;Lipopolysaccharide biosynthesis&#39;, &#39;ec00541&#39;: &#39;O-Antigen nucleotide sugar biosynthesis&#39;, &#39;ec00550&#39;: &#39;Peptidoglycan biosynthesis&#39;, &#39;ec00552&#39;: &#39;Teichoic acid biosynthesis&#39;, &#39;ec00571&#39;: &#39;Lipoarabinomannan (LAM) biosynthesis&#39;, &#39;ec00572&#39;: &#39;Arabinogalactan biosynthesis - Mycobacterium&#39;, &#39;ec00730&#39;: &#39;Thiamine metabolism&#39;, &#39;ec00740&#39;: &#39;Riboflavin metabolism&#39;, &#39;ec00750&#39;: &#39;Vitamin B6 metabolism&#39;, &#39;ec00760&#39;: &#39;Nicotinate and nicotinamide metabolism&#39;, &#39;ec00770&#39;: &#39;Pantothenate and CoA biosynthesis&#39;, &#39;ec00780&#39;: &#39;Biotin metabolism&#39;, &#39;ec00785&#39;: &#39;Lipoic acid metabolism&#39;, &#39;ec00790&#39;: &#39;Folate biosynthesis&#39;, &#39;ec00670&#39;: &#39;One carbon pool by folate&#39;, &#39;ec00830&#39;: &#39;Retinol metabolism&#39;, &#39;ec00860&#39;: &#39;Porphyrin metabolism&#39;, &#39;ec00130&#39;: &#39;Ubiquinone and other terpenoid-quinone biosynthesis&#39;, &#39;ec00900&#39;: &#39;Terpenoid backbone biosynthesis&#39;, &#39;ec00902&#39;: &#39;Monoterpenoid biosynthesis&#39;, &#39;ec00909&#39;: &#39;Sesquiterpenoid and triterpenoid biosynthesis&#39;, &#39;ec00904&#39;: &#39;Diterpenoid biosynthesis&#39;, &#39;ec00906&#39;: &#39;Carotenoid biosynthesis&#39;, &#39;ec00905&#39;: &#39;Brassinosteroid biosynthesis&#39;, &#39;ec00981&#39;: &#39;Insect hormone biosynthesis&#39;, &#39;ec00908&#39;: &#39;Zeatin biosynthesis&#39;, &#39;ec00903&#39;: &#39;Limonene degradation&#39;, &#39;ec00907&#39;: &#39;Pinene, camphor and geraniol degradation&#39;, &#39;ec00522&#39;: &#39;Biosynthesis of 12-, 14- and 16-membered macrolides&#39;, &#39;ec01051&#39;: &#39;Biosynthesis of ansamycins&#39;, &#39;ec01059&#39;: &#39;Biosynthesis of enediyne antibiotics&#39;, &#39;ec01056&#39;: &#39;Biosynthesis of type II polyketide backbone&#39;, &#39;ec01057&#39;: &#39;Biosynthesis of type II polyketide products&#39;, &#39;ec00253&#39;: &#39;Tetracycline biosynthesis&#39;, &#39;ec00523&#39;: &#39;Polyketide sugar unit biosynthesis&#39;, &#39;ec01053&#39;: &#39;Biosynthesis of siderophore group nonribosomal peptides&#39;, &#39;ec01055&#39;: &#39;Biosynthesis of vancomycin group antibiotics&#39;, &#39;ec00940&#39;: &#39;Phenylpropanoid biosynthesis&#39;, &#39;ec00945&#39;: &#39;Stilbenoid, diarylheptanoid and gingerol biosynthesis&#39;, &#39;ec00941&#39;: &#39;Flavonoid biosynthesis&#39;, &#39;ec00944&#39;: &#39;Flavone and flavonol biosynthesis&#39;, &#39;ec00942&#39;: &#39;Anthocyanin biosynthesis&#39;, &#39;ec00943&#39;: &#39;Isoflavonoid biosynthesis&#39;, &#39;ec00946&#39;: &#39;Degradation of flavonoids&#39;, &#39;ec00901&#39;: &#39;Indole alkaloid biosynthesis&#39;, &#39;ec00950&#39;: &#39;Isoquinoline alkaloid biosynthesis&#39;, &#39;ec00960&#39;: &#39;Tropane, piperidine and pyridine alkaloid biosynthesis&#39;, &#39;ec00996&#39;: &#39;Biosynthesis of various alkaloids&#39;, &#39;ec00232&#39;: &#39;Caffeine metabolism&#39;, &#39;ec00965&#39;: &#39;Betalain biosynthesis&#39;, &#39;ec00966&#39;: &#39;Glucosinolate biosynthesis&#39;, &#39;ec00402&#39;: &#39;Benzoxazinoid biosynthesis&#39;, &#39;ec00311&#39;: &#39;Penicillin and cephalosporin biosynthesis&#39;, &#39;ec00332&#39;: &#39;Carbapenem biosynthesis&#39;, &#39;ec00261&#39;: &#39;Monobactam biosynthesis&#39;, &#39;ec00331&#39;: &#39;Clavulanic acid biosynthesis&#39;, &#39;ec00521&#39;: &#39;Streptomycin biosynthesis&#39;, &#39;ec00524&#39;: &#39;Neomycin, kanamycin and gentamicin biosynthesis&#39;, &#39;ec00525&#39;: &#39;Acarbose and validamycin biosynthesis&#39;, &#39;ec00401&#39;: &#39;Novobiocin biosynthesis&#39;, &#39;ec00404&#39;: &#39;Staurosporine biosynthesis&#39;, &#39;ec00405&#39;: &#39;Phenazine biosynthesis&#39;, &#39;ec00333&#39;: &#39;Prodigiosin biosynthesis&#39;, &#39;ec00254&#39;: &#39;Aflatoxin biosynthesis&#39;, &#39;ec00998&#39;: &#39;Biosynthesis of various antibiotics&#39;, &#39;ec00999&#39;: &#39;Biosynthesis of various plant secondary metabolites&#39;, &#39;ec00997&#39;: &#39;Biosynthesis of various other secondary metabolites&#39;, &#39;ec00362&#39;: &#39;Benzoate degradation&#39;, &#39;ec00627&#39;: &#39;Aminobenzoate degradation&#39;, &#39;ec00364&#39;: &#39;Fluorobenzoate degradation&#39;, &#39;ec00625&#39;: &#39;Chloroalkane and chloroalkene degradation&#39;, &#39;ec00361&#39;: &#39;Chlorocyclohexane and chlorobenzene degradation&#39;, &#39;ec00623&#39;: &#39;Toluene degradation&#39;, &#39;ec00622&#39;: &#39;Xylene degradation&#39;, &#39;ec00633&#39;: &#39;Nitrotoluene degradation&#39;, &#39;ec00642&#39;: &#39;Ethylbenzene degradation&#39;, &#39;ec00643&#39;: &#39;Styrene degradation&#39;, &#39;ec00791&#39;: &#39;Atrazine degradation&#39;, &#39;ec00930&#39;: &#39;Caprolactam degradation&#39;, &#39;ec00363&#39;: &#39;Bisphenol degradation&#39;, &#39;ec00621&#39;: &#39;Dioxin degradation&#39;, &#39;ec00626&#39;: &#39;Naphthalene degradation&#39;, &#39;ec00624&#39;: &#39;Polycyclic aromatic hydrocarbon degradation&#39;, &#39;ec00365&#39;: &#39;Furfural degradation&#39;, &#39;ec00984&#39;: &#39;Steroid degradation&#39;, &#39;ec00980&#39;: &#39;Metabolism of xenobiotics by cytochrome P450&#39;, &#39;ec00982&#39;: &#39;Drug metabolism - cytochrome P450&#39;, &#39;ec00983&#39;: &#39;Drug metabolism - other enzymes&#39;, &#39;ec00970&#39;: &#39;Aminoacyl-tRNA biosynthesis&#39;}
+</pre>
+</div>
+</div>
+
+</div>
+
+</div>
+
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs  ">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[&nbsp;]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+     <div class="CodeMirror cm-s-jupyter">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="kn">import</span> <span class="nn">json</span>
+
+<span class="c1"># Open the file for reading</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;data/ec_pathway_names_dict.json&quot;</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+    <span class="c1"># Load the dictionary from the file</span>
+    <span class="n">pathway_names</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
 </pre></div>
 
      </div>
