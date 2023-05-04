@@ -22,6 +22,8 @@ knitr::opts_knit$set(root.dir = ".")
 
 # Read JSON file with all the pathways and the enzymes within into R object
 pathways.all <- fromJSON("data/all_pathways_enzymes_dict.json")
+# Read JSON file with all the pathways codes and their names within into R object
+pathways.all.names <- fromJSON("data/ec_pathway_names_dict.json")
 
 # Read  the metagenomics data file
 mgxCount <- read.table(file = '../analysis/data/mgxData', sep = '\t', header = TRUE)
@@ -114,32 +116,88 @@ remove(pValue.CD, pValue.UC)
 
 # Calculate the ORA score for each pathway, using the Fishers exact test.
 
+## ORA score for Ulerative colitis (UC)
+
 ```{r}
 ##Based on: https://www.pathwaycommons.org/guide/primers/statistics/fishers_exact_test/
 
 # Get the row names and split them at the colon
 deg.UC.EC <- row.names(deg.UC)
 deg.UC.EC <- lapply(strsplit(deg.UC.EC, ":"), "[[", 1)
-deg.CD.EC <- row.names(mgxCount.CD)
-deg.CD.UC <- lapply(strsplit(deg.CD.EC, ":"), "[[", 1)
 
 #Create a dataframe to store the required numbers in.
-Contingency_table <- data.frame(matrix(ncol=5,nrow=0, dimnames=list(NULL, c("EC.PW", "x", "m", "n", "k"))))
+Contingency_table.UC <- data.frame(matrix(ncol=5,nrow=0, dimnames=list(NULL, c("EC.PW", "x", "m", "n", "k"))))
 counter = 1
 for (i in 1:length(pathways.all)) {
-   Contingency_table[counter,1] <- names(pathways.all[i]) #EC.PW
-   Contingency_table[counter,2] <- length(intersect(deg.UC.EC, pathways.all[[i]])) ##x <- (number4) #Total differentially changed metabolites, also in a PW. (HMDBsInPWs)
-   Contingency_table[counter,3] <- length(pathways.all[[i]]) ##m <- (number) #Total Metabolites in PW (TotalMetabolitesinPW)
-   Contingency_table[counter,4] <- nrow(mgxCount.UC) - length(intersect(deg.UC.EC, pathways.all[[i]])) ##n <- (number2) #Total Metabolites measured not in PW (DISTINCT all_HMDB - HMDBsInPWs)
-   Contingency_table[counter,5] <- nrow(deg.UC) ##k <- (number3) #Total differentially changed metabolites. (DISTINCT vector_HMDB)
+   Contingency_table.UC[counter,1] <- names(pathways.all[i]) #EC.PW
+   Contingency_table.UC[counter,2] <- length(intersect(deg.UC.EC, pathways.all[[i]])) ##x <- (number4) #Total differentially changed enzymes, also in a PW.
+   Contingency_table.UC[counter,3] <- length(pathways.all[[i]]) ##m <- (number) #Total Enzymes in PW
+   Contingency_table.UC[counter,4] <- nrow(mgxCount.UC) - length(intersect(deg.UC.EC, pathways.all[[i]])) ##n <- (number2) #Total Metabolites measured not in PW
+   Contingency_table.UC[counter,5] <- nrow(deg.UC) ##k <- (number3) #Total differentially changed enzymes
 
    counter <- counter + 1
 }
 
 # Calculate hypergeometric density p-value for all pathways.
-i <- 1:nrow(Contingency_table)
-probabilities <- dhyper(Contingency_table[i,2], Contingency_table[i,3], Contingency_table[i,4], Contingency_table[i,5], log = FALSE)
+i <- 1:nrow(Contingency_table.UC)
+probabilities.UC <- dhyper(Contingency_table.UC[i,2], Contingency_table.UC[i,3], Contingency_table.UC[i,4], Contingency_table.UC[i,5], log = FALSE)
 
-pathwayAnalysis_results <- cbind(names(pathways.all), probabilities, pathways.all[])
-pathwayAnalysis_results_sorted <- pathwayAnalysis_results[  with(pathwayAnalysis_results, order(probabilities)),]
 ```
+## ORA score for Crohn's Disease (CD)
+
+```{r}
+# Get the row names and split them at the colon
+deg.CD.EC <- row.names(mgxCount.CD)
+deg.CD.UC <- lapply(strsplit(deg.CD.EC, ":"), "[[", 1)
+
+
+Contingency_table.CD <- data.frame(matrix(ncol=5,nrow=0, dimnames=list(NULL, c("EC.PW", "x", "m", "n", "k"))))
+counter = 1
+for (i in 1:length(pathways.all)) {
+   Contingency_table.CD[counter,1] <- names(pathways.all[i]) #EC.PW
+   Contingency_table.CD[counter,2] <- length(intersect(deg.CD.EC, pathways.all[[i]])) ##x <- (number4) #Total differentially changed enzymes, also in a PW.
+   Contingency_table.CD[counter,3] <- length(pathways.all[[i]]) ##m <- (number) #Total Enzymes in PW
+   Contingency_table.CD[counter,4] <- nrow(mgxCount.CD) - length(intersect(deg.CD.EC, pathways.all[[i]])) ##n <- (number2) #Total Metabolites measured not in PW
+   Contingency_table.CD[counter,5] <- nrow(deg.CD) ##k <- (number3) #Total differentially changed enzymes
+
+   counter <- counter + 1
+}
+
+# Calculate hypergeometric density p-value for all pathways.
+i <- 1:nrow(Contingency_table.CD)
+probabilities.CD <- dhyper(Contingency_table.CD[i,2], Contingency_table.CD[i,3], Contingency_table.CD[i,4], Contingency_table.CD[i,5], log = FALSE)
+
+```
+
+
+
+
+```{r}
+#pathways_names$code <- rownames(pathways.all.names)
+all(rownames(pathwayAnalysis_results) == rownames(pathways.all.names))
+pathways_names <- as.matrix(pathways.all.names)
+
+pathwayAnalysis_results <- data.frame(names(pathways.all), pathways_names, probabilities, lengths(pathways.all))
+colnames(pathwayAnalysis_results) <- c("EC_code", "name", "probabilities", "count")
+
+pathwayAnalysis_results_sorted <- pathwayAnalysis_results[with(pathwayAnalysis_results, order(probabilities)),]
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+pathwayAnalysis_results_sorted[which(pathwayAnalysis_results_sorted$probabilities < 0.05),] %>% 
+  ggplot(aes(reorder(as.character(name), count), count)) + 
+  geom_col(aes(fill = probabilities)) + 
+  scale_fill_gradient2(low = "#0000ff", 
+                       mid = "#ff0000",
+                       high= "yellow",
+                       midpoint = 0.01) + 
+  coord_flip() + 
+  labs(x = "Pathways (CD)", y = "Gene count")
+```
+
+
+
+
