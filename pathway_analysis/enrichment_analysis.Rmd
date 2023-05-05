@@ -13,7 +13,6 @@ dplyr version: 1.0.9
 
 ggplot2 version: 3.3.6
 
-
 ## Data Preparations
 
 The following section will prepare input data to be used in the analysis
@@ -27,9 +26,9 @@ library(ggplot2)
 knitr::opts_knit$set(root.dir = ".")
 
 # Read JSON file with all the pathways and the enzymes within into R object
-pathways.all <- fromJSON("data/all_pathways_enzymes_dict.json")
+PW.all.enz <- fromJSON("data/all_pathways_enzymes_dict.json")
 # Read JSON file with all the pathways codes and their names within into R object
-pathways.all.names <- fromJSON("data/ec_pathway_names_dict.json")
+PW.all.names <- fromJSON("data/ec_pathway_names_dict.json")
 
 # Read  the metagenomics data file
 mgxCount <- read.table(file = '../analysis/data/mgxData', sep = '\t', header = TRUE)
@@ -69,7 +68,7 @@ mgxCount.CD <- subset(mgxCount, select=metaData.CD$External.ID)
 mgxCount.UC <- subset(mgxCount, select=metaData.UC$External.ID)
 mgxCount.nonIBD <- subset(mgxCount, select=metaData.nonIBD$External.ID)
 
-remove(metaData.CD, metaData.UC, metaData.nonIBD)
+remove(metaData.CD, metaData.UC, metaData.nonIBD, metaData, mgxCount)
 ```
 
 ### T-tests for Crohn's Disease (CD)
@@ -77,7 +76,6 @@ remove(metaData.CD, metaData.UC, metaData.nonIBD)
 ```{r}
 # Compute statistical significance (using t-test)
 pValue.CD = NULL # Empty list for the p-values
-tStat.CD = NULL # Empty list of the t test statistics
 
 for(i in 1 : nrow(mgxCount.nonIBD)) { # For each gene : 
 	x = mgxCount.nonIBD[i,] # control of gene number i
@@ -89,15 +87,18 @@ for(i in 1 : nrow(mgxCount.nonIBD)) { # For each gene :
 	# Put the current p-value in the pvalues list
 	pValue.CD[i] = t$p.value
 }
+
+# Apply Benjamini Hochberg correction to pvalues to correct for multiple testing
 pAdjust.CD = p.adjust(pValue.CD, method="BH", n= nrow(mgxCount.nonIBD))
+
+remove(pValue.CD, t, x, y, i)
 ```
 
-### T-tests for Ulerative colitis (UC)
+### T-tests for Ulcerative colitis (UC)
 
 ```{r}
 # Compute statistical significance (using t-test)
 pValue.UC = NULL # Empty list for the p-values
-tStat.UC = NULL # Empty list of the t test statistics
 
 for(i in 1 : nrow(mgxCount.nonIBD)) { # For each gene : 
 	x = mgxCount.nonIBD[i,] # control of gene number i
@@ -110,19 +111,13 @@ for(i in 1 : nrow(mgxCount.nonIBD)) { # For each gene :
 	pValue.UC[i] = t$p.value
 }
 
-remove(t, x, y, i)
-pAdjust.UC = p.adjust(pValue.UC, method="BH")
+# Apply Benjamini Hochberg correction to pvalues to correct for multiple testing
+pAdjust.UC = p.adjust(pValue.UC, method="BH", n= nrow(mgxCount.nonIBD))
+
+remove(pValue.UC, t, x, y, i, mgxCount.nonIBD)
 ```
 
-```{r}
-# Select statistically significant enzymes
-deg.CD <- mgxCount.CD[which(pValue.CD<0.05),]
-deg.CD$pvalue <- pValue.CD[which(pValue.CD<0.05)]
-deg.UC <- mgxCount.UC[which(pValue.UC<0.05),]
-deg.UC$pvalue <- pValue.UC[which(pValue.UC<0.05)]
-
-remove(pValue.CD, pValue.UC)
-```
+### Select statistically significant enzymes
 
 ```{r}
 # Select statistically significant enzymes
@@ -131,28 +126,30 @@ deg.CD$pAdjust <- pAdjust.CD[which(pAdjust.CD<0.05)]
 deg.UC <- mgxCount.UC[which(pAdjust.UC<0.05),]
 deg.UC$pAdjust <- pAdjust.UC[which(pAdjust.UC<0.05)]
 
-remove(pValue.CD, pValue.UC)
-```
-
-# Calculate the ORA score for each pathway, using the Fishers exact test.
-
-## ORA score for Ulerative colitis (UC)
-
-```{r}
-##Based on: https://www.pathwaycommons.org/guide/primers/statistics/fishers_exact_test/
-
 # Get the row names and split them at the colon
 deg.UC.EC <- row.names(deg.UC)
 deg.UC.EC <- lapply(strsplit(deg.UC.EC, ":"), "[[", 1)
+deg.CD.EC <- row.names(mgxCount.CD)
+deg.CD.EC <- lapply(strsplit(deg.CD.EC, ":"), "[[", 1)
 
+remove(pAdjust.CD, pAdjust.UC)
+```
+
+## Calculate the ORA score for each pathway, using the Fishers exact test
+
+Based on: https://www.pathwaycommons.org/guide/primers/statistics/fishers_exact_test/
+
+### ORA score for Ulcerative colitis (UC)
+
+```{r}
 #Create a dataframe to store the required numbers in.
 Contingency_table.UC <- data.frame(matrix(ncol=5,nrow=0, dimnames=list(NULL, c("EC.PW", "x", "m", "n", "k"))))
 counter = 1
-for (i in 1:length(pathways.all)) {
-   Contingency_table.UC[counter,1] <- names(pathways.all[i]) #EC.PW
-   Contingency_table.UC[counter,2] <- length(intersect(deg.UC.EC, pathways.all[[i]])) ##x <- (number4) #Total differentially changed enzymes, also in a PW.
-   Contingency_table.UC[counter,3] <- length(pathways.all[[i]]) ##m <- (number) #Total Enzymes in PW
-   Contingency_table.UC[counter,4] <- nrow(mgxCount.UC) - length(intersect(deg.UC.EC, pathways.all[[i]])) ##n <- (number2) #Total Metabolites measured not in PW
+for (i in 1:length(PW.all.enz)) {
+   Contingency_table.UC[counter,1] <- names(PW.all.enz[i]) #EC.PW
+   Contingency_table.UC[counter,2] <- length(intersect(deg.UC.EC, PW.all.enz[[i]])) ##x <- (number4) #Total differentially changed enzymes, also in a PW.
+   Contingency_table.UC[counter,3] <- length(PW.all.enz[[i]]) ##m <- (number) #Total Enzymes in PW
+   Contingency_table.UC[counter,4] <- nrow(mgxCount.UC) - length(intersect(deg.UC.EC, PW.all.enz[[i]])) ##n <- (number2) #Total Metabolites measured not in PW
    Contingency_table.UC[counter,5] <- nrow(deg.UC) ##k <- (number3) #Total differentially changed enzymes
 
    counter <- counter + 1
@@ -162,23 +159,20 @@ for (i in 1:length(pathways.all)) {
 i <- 1:nrow(Contingency_table.UC)
 probabilities.UC <- dhyper(Contingency_table.UC[i,2], Contingency_table.UC[i,3], Contingency_table.UC[i,4], Contingency_table.UC[i,5], log = FALSE)
 
+remove(mgxCount.UC, Contingency_table.UC, deg.UC, deg.UC.EC, counter, i)
 ```
 
-## ORA score for Crohn's Disease (CD)
+### ORA score for Crohn's Disease (CD)
 
 ```{r}
-# Get the row names and split them at the colon
-deg.CD.EC <- row.names(mgxCount.CD)
-deg.CD.UC <- lapply(strsplit(deg.CD.EC, ":"), "[[", 1)
-
-
+#Create a dataframe to store the required numbers in.
 Contingency_table.CD <- data.frame(matrix(ncol=5,nrow=0, dimnames=list(NULL, c("EC.PW", "x", "m", "n", "k"))))
 counter = 1
-for (i in 1:length(pathways.all)) {
-   Contingency_table.CD[counter,1] <- names(pathways.all[i]) #EC.PW
-   Contingency_table.CD[counter,2] <- length(intersect(deg.CD.EC, pathways.all[[i]])) ##x <- (number4) #Total differentially changed enzymes, also in a PW.
-   Contingency_table.CD[counter,3] <- length(pathways.all[[i]]) ##m <- (number) #Total Enzymes in PW
-   Contingency_table.CD[counter,4] <- nrow(mgxCount.CD) - length(intersect(deg.CD.EC, pathways.all[[i]])) ##n <- (number2) #Total Metabolites measured not in PW
+for (i in 1:length(PW.all.enz)) {
+   Contingency_table.CD[counter,1] <- names(PW.all.enz[i]) #EC.PW
+   Contingency_table.CD[counter,2] <- length(intersect(deg.CD.EC, PW.all.enz[[i]])) ##x <- (number4) #Total differentially changed enzymes, also in a PW.
+   Contingency_table.CD[counter,3] <- length(PW.all.enz[[i]]) ##m <- (number) #Total Enzymes in PW
+   Contingency_table.CD[counter,4] <- nrow(mgxCount.CD) - length(intersect(deg.CD.EC, PW.all.enz[[i]])) ##n <- (number2) #Total Metabolites measured not in PW
    Contingency_table.CD[counter,5] <- nrow(deg.CD) ##k <- (number3) #Total differentially changed enzymes
 
    counter <- counter + 1
@@ -187,29 +181,30 @@ for (i in 1:length(pathways.all)) {
 # Calculate hypergeometric density p-value for all pathways.
 i <- 1:nrow(Contingency_table.CD)
 probabilities.CD <- dhyper(Contingency_table.CD[i,2], Contingency_table.CD[i,3], Contingency_table.CD[i,4], Contingency_table.CD[i,5], log = FALSE)
+
+remove(mgxCount.CD, Contingency_table.CD, deg.CD, deg.CD.EC, counter, i)
 ```
 
-# Plot the results in a horizontal bar chart
+## Plot the results in a horizontal bar chart
 
-## Plot for Ulerative colitis (UC)
+### Plot for Ulcerative colitis (UC)
 
 ```{r}
-#pathways_names$code <- rownames(pathways.all.names)
-#all(rownames(pathwayAnalysis_results) == rownames(pathways.all.names))
-pathways_names <- as.matrix(pathways.all.names)
+PW.all.names <- as.matrix(PW.all.names)
 
-pathwayAnalysis_results.UC <- data.frame(names(pathways.all), pathways_names, probabilities.UC, lengths(pathways.all))
-colnames(pathwayAnalysis_results.UC) <- c("EC_code", "name", "probabilities", "count")
+# Create a dataframe for the results of the pathway analysis
+PW_Analysis_results.UC <- data.frame(names(PW.all.enz), PW.all.names, probabilities.UC, lengths(PW.all.enz))
+colnames(PW_Analysis_results.UC) <- c("EC_code", "name", "probabilities", "count")
 
-pathwayAnalysis_results_sorted.UC <- pathwayAnalysis_results.UC[with(pathwayAnalysis_results.UC, order(probabilities)),]
+# Order pathway analysis results by p-values
+PWAnalysis_results_sorted.UC <- PW_Analysis_results.UC[with(PW_Analysis_results.UC, order(probabilities)),]
 
-# Write the output in a file
-pathwayAnalysis_results_sorted.UC <- apply(pathwayAnalysis_results_sorted.UC,2,as.character)
-write.table(pathwayAnalysis_results_sorted.UC, "output/mgxPWdata_UC.csv", sep =",", row.names = FALSE)
+remove(PW_Analysis_results.UC, probabilities.UC)
 ```
 
 ```{r fig.height = 15, fig.width = 9}
-pathwayAnalysis_results_sorted.UC[which(pathwayAnalysis_results_sorted.UC$probabilities < 0.05),] %>% 
+# Horizontal bar plot of significant pathways in UC
+PWAnalysis_results_sorted.UC[which(PWAnalysis_results_sorted.UC$probabilities < 0.05),] %>% 
   ggplot(aes(reorder(as.character(name), count), count)) + 
   geom_col(aes(fill = probabilities)) + 
   scale_fill_gradient2(low = "#0000ff", 
@@ -220,25 +215,22 @@ pathwayAnalysis_results_sorted.UC[which(pathwayAnalysis_results_sorted.UC$probab
   labs(x = "Pathways (UC)", y = "Enzyme count")
 ```
 
-## Plot for Crohn's Disease (CD)
+### Plot for Crohn's Disease (CD)
 
 ```{r}
-#pathways_names$code <- rownames(pathways.all.names)
-#all(rownames(pathwayAnalysis_results) == rownames(pathways.all.names))
-#pathways_names <- as.matrix(pathways.all.names)
+# Create a dataframe for the results of the pathway analysis
+PW_Analysis_results.CD <- data.frame(names(PW.all.enz), PW.all.names, probabilities.CD, lengths(PW.all.enz))
+colnames(PW_Analysis_results.CD) <- c("EC_code", "name", "probabilities", "count")
 
-pathwayAnalysis_results.CD <- data.frame(names(pathways.all), pathways_names, probabilities.CD, lengths(pathways.all))
-colnames(pathwayAnalysis_results.CD) <- c("EC_code", "name", "probabilities", "count")
+# Order pathway analysis results by p-values
+PWAnalysis_results_sorted.CD <- PW_Analysis_results.CD[with(PW_Analysis_results.CD, order(probabilities)),]
 
-pathwayAnalysis_results_sorted.CD <- pathwayAnalysis_results.UC[with(pathwayAnalysis_results.UC, order(probabilities)),]
-
-# Write the output in a file
-pathwayAnalysis_results_sorted.CD <- apply(pathwayAnalysis_results_sorted.CD,2,as.character)
-write.table(pathwayAnalysis_results_sorted.CD, "output/mgxPWdata_CD.csv", sep =",", row.names = FALSE)
+remove(PW_Analysis_results.CD, probabilities.CD, PW.all.names, PW.all.enz)
 ```
 
 ```{r fig.height = 15, fig.width = 9}
-pathwayAnalysis_results_sorted.CD[which(pathwayAnalysis_results_sorted.CD$probabilities < 0.05),] %>% 
+# Horizontal bar plot of significant pathways in CD
+PWAnalysis_results_sorted.CD[which(PWAnalysis_results_sorted.CD$probabilities < 0.05),] %>% 
   ggplot(aes(reorder(as.character(name), count), count)) + 
   geom_col(aes(fill = probabilities)) + 
   scale_fill_gradient2(low = "#0000ff", 
@@ -247,4 +239,16 @@ pathwayAnalysis_results_sorted.CD[which(pathwayAnalysis_results_sorted.CD$probab
                        midpoint = 0.01) +
   coord_flip() + 
   labs(x = "Pathways (CD)", y = "Enzyme count")
+```
+
+## Writing output tables in csv file
+
+```{r}
+# Write the output in a file
+PWAnalysis_results_sorted.UC <- apply(PWAnalysis_results_sorted.UC,2,as.character)
+write.table(PWAnalysis_results_sorted.UC, "output/mgxPWdata_UC.csv", sep =",", row.names = FALSE)
+
+# Write the output in a file
+PWAnalysis_results_sorted.CD <- apply(PWAnalysis_results_sorted.CD,2,as.character)
+write.table(PWAnalysis_results_sorted.CD, "output/mgxPWdata_CD.csv", sep =",", row.names = FALSE)
 ```
