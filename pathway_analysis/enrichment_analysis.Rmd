@@ -68,7 +68,7 @@ mgxCount.CD <- subset(mgxCount, select=metaData.CD$External.ID)
 mgxCount.UC <- subset(mgxCount, select=metaData.UC$External.ID)
 mgxCount.nonIBD <- subset(mgxCount, select=metaData.nonIBD$External.ID)
 
-remove(metaData.CD, metaData.UC, metaData.nonIBD, metaData, mgxCount)
+#remove(metaData.CD, metaData.UC, metaData.nonIBD, metaData, mgxCount)
 ```
 
 ### T-tests for Crohn's Disease (CD)
@@ -91,8 +91,28 @@ for(i in 1 : nrow(mgxCount.nonIBD)) { # For each gene :
 # Apply Benjamini Hochberg correction to pvalues to correct for multiple testing
 pAdjust.CD = p.adjust(pValue.CD, method="BH", n= nrow(mgxCount.nonIBD))
 
-remove(pValue.CD, t, x, y, i)
+#remove(pValue.CD, t, x, y, i)
 ```
+
+```{r}
+library("DESeq2")
+
+metaData.nonIBD.CD <- metaData[(metaData$diagnosis=="CD" | metaData$diagnosis=="nonIBD"),]
+mgxCount.nonIBD.CD <- subset(mgxCount, select=metaData.nonIBD.CD$External.ID)
+
+dds.CD <- DESeqDataSetFromMatrix(countData=round(mgxCount.nonIBD.CD), 
+                              colData=metaData.nonIBD.CD, 
+                              design=~diagnosis, tidy = FALSE)
+
+dds.CD <- DESeq(dds.CD)
+
+res.CD <- results(dds.CD)
+summary(res.CD)
+
+n_distinct(which(res.CD$pvalue<0.05))
+n_distinct(which(res.CD$padj<0.05))
+```
+
 
 ### T-tests for Ulcerative colitis (UC)
 
@@ -114,8 +134,26 @@ for(i in 1 : nrow(mgxCount.nonIBD)) { # For each gene :
 # Apply Benjamini Hochberg correction to pvalues to correct for multiple testing
 pAdjust.UC = p.adjust(pValue.UC, method="BH", n= nrow(mgxCount.nonIBD))
 
-remove(pValue.UC, t, x, y, i, mgxCount.nonIBD)
+remove(pValue.UC, t, x, y, i  )#,mgxCount.nonIBD)
 ```
+
+```{r}
+metaData.nonIBD.UC <- metaData[(metaData$diagnosis=="UC" | metaData$diagnosis=="nonIBD"),]
+mgxCount.nonIBD.UC <- subset(mgxCount, select=metaData.nonIBD.UC$External.ID)
+
+dds.UC <- DESeqDataSetFromMatrix(countData=round(mgxCount.nonIBD.UC), 
+                              colData=metaData.nonIBD.UC, 
+                              design=~diagnosis, tidy = FALSE)
+
+dds.UC <- DESeq(dds.UC)
+
+res.UC <- results(dds.UC)
+summary(res.UC)
+
+n_distinct(which(res.UC$pvalue<0.05))
+n_distinct(which(res.UC$padj<0.05))
+```
+
 
 ### Select statistically significant enzymes
 
@@ -129,7 +167,7 @@ deg.UC$pAdjust <- pAdjust.UC[which(pAdjust.UC<0.05)]
 # Get the row names and split them at the colon
 deg.UC.EC <- row.names(deg.UC)
 deg.UC.EC <- lapply(strsplit(deg.UC.EC, ":"), "[[", 1)
-deg.CD.EC <- row.names(mgxCount.CD)
+deg.CD.EC <- row.names(deg.CD)
 deg.CD.EC <- lapply(strsplit(deg.CD.EC, ":"), "[[", 1)
 
 remove(pAdjust.CD, pAdjust.UC)
@@ -137,9 +175,32 @@ remove(pAdjust.CD, pAdjust.UC)
 
 ## Calculate the ORA score for each pathway, using the Fishers exact test
 
-Based on: https://www.pathwaycommons.org/guide/primers/statistics/fishers_exact_test/
+Based on: <https://www.pathwaycommons.org/guide/primers/statistics/fishers_exact_test/>
 
 ### ORA score for Ulcerative colitis (UC)
+
+
+```{r}
+library("clusterProfiler")
+
+deg.nonIBD.EC <- row.names(mgxCount.nonIBD)
+deg.nonIBD.EC <- lapply(strsplit(deg.nonIBD.EC, ":"), "[[", 1)
+
+PW.to.enzyme <- as.data.frame(t(as.data.frame(sapply(PW.all.enz, rbind))))
+PW.to.enzyme$pathway <- rownames(PW.to.enzyme)
+colnames(PW.to.enzyme) <- c("enzyme", "pathway")
+PW.to.enzyme <- PW.to.enzyme[,c(2,1)]
+PW.to.enzyme$pathway <- sub("\\..*", "", PW.to.enzyme$pathway)
+
+PW.to.name <- data.frame("pathway"=names(PW.all.names), "name"=unlist(PW.all.names))
+
+res <- enricher(gene=as.factor(unlist(deg.UC.EC)),
+                TERM2GENE = PW.to.enzyme,
+                TERM2NAME = PW.to.name)
+
+summary(res)
+```
+
 
 ```{r}
 #Create a dataframe to store the required numbers in.
@@ -163,6 +224,15 @@ remove(mgxCount.UC, Contingency_table.UC, deg.UC, deg.UC.EC, counter, i)
 ```
 
 ### ORA score for Crohn's Disease (CD)
+
+```{r}
+res <- enricher(gene=as.factor(unlist(deg.CD.EC)),
+                TERM2GENE = PW.to.enzyme,
+                TERM2NAME = PW.to.name)
+
+summary(res)
+```
+
 
 ```{r}
 #Create a dataframe to store the required numbers in.
