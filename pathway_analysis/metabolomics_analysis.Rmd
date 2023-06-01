@@ -21,7 +21,7 @@ library()
 
 This can be skipped...
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, eval=FALSE}
 library(knitr)
 
 # Sets current path as working file path for all code chuncks
@@ -41,7 +41,7 @@ write.table(HMDB, "data/HMDB.csv", sep =",", row.names = FALSE)
 
 This can be skipped...
 
-```{r}
+```{r, eval=FALSE}
 # Read full metabolomics data
 mbxCount <- read.table(file = "data/iHMP_metabolomics.tsv", sep = '\t', header = TRUE)
 # Remove rows with empty HMDB
@@ -88,7 +88,7 @@ mbxCount <- mbxCount[!is.na(mbxCount$compound), ]
 # Relocate the compound column as first
 mbxCount <- mbxCount %>% relocate(compound)
 # 
-rownames(mbxCount) <- mbxCount[,1]
+#rownames(mbxCount) <- mbxCount[,1]
 ```
 
 
@@ -99,10 +99,10 @@ We will apply some filtering process to filter out genes in the input data
 ```{r filtering,warning=FALSE, message=FALSE}
 # Remove genes which has all zero values for all samples then start DE analysis
 mbxCount[is.na(mbxCount)] <- 0
-nonzero <- rowSums(mbxCount) > 0
+nonzero <- rowSums(mbxCount[,4:ncol(mbxCount)]) > 0
 mbxCount <- mbxCount[nonzero,]
 
-remove(nonzero)
+#remove(nonzero)
 ```
 
 ## T-tests
@@ -114,11 +114,11 @@ metaData.UC <- metaData[metaData$diagnosis=="UC",]
 metaData.nonIBD <- metaData[metaData$diagnosis=="nonIBD",]
 
 # Select metagenomics data from CD, UC and nonIBD
-mbxCount.CD <- subset(mbxCount, select=metaData.CD$External.ID)
-mbxCount.UC <- subset(mbxCount, select=metaData.UC$External.ID)
-mbxCount.nonIBD <- subset(mbxCount, select=metaData.nonIBD$External.ID)
+mbxCount.CD <- subset(mbxCount[,4:ncol(mbxCount)], select=metaData.CD$External.ID)
+mbxCount.UC <- subset(mbxCount[,4:ncol(mbxCount)], select=metaData.UC$External.ID)
+mbxCount.nonIBD <- subset(mbxCount[,4:ncol(mbxCount)], select=metaData.nonIBD$External.ID)
 
-remove(metaData.CD, metaData.UC, metaData.nonIBD, metaData, mbxCount)
+#remove(metaData.CD, metaData.UC, metaData.nonIBD, metaData, mbxCount)
 ```
 
 ### T-tests for Crohn's Disease (CD)
@@ -141,7 +141,30 @@ for(i in 1 : nrow(mbxCount.nonIBD)) { # For each gene :
 # Apply Benjamini Hochberg correction to pvalues to correct for multiple testing
 pAdjust.CD = p.adjust(pValue.CD, method="BH", n= nrow(mbxCount.nonIBD))
 
-remove(pValue.CD, t, x, y, i)
+#remove(pValue.CD, t, x, y, i)
+```
+
+### T-tests for Ulcerative colitis (UC)
+
+```{r}
+# Compute statistical significance (using t-test)
+pValue.UC = NULL # Empty list for the p-values
+
+for(i in 1 : nrow(mbxCount.nonIBD)) { # For each gene : 
+	x = mbxCount.nonIBD[i,] # control of gene number i
+	y = mbxCount.UC[i,] # UC of gene number i
+	
+	# Compute t-test between the two conditions
+	t = t.test(x, y)
+	
+	# Put the current p-value in the pvalues list
+	pValue.UC[i] = t$p.value
+}
+
+# Apply Benjamini Hochberg correction to pvalues to correct for multiple testing
+pAdjust.UC = p.adjust(pValue.UC, method="BH", n= nrow(mbxCount.nonIBD))
+
+#remove(pValue.UC, t, x, y, i, mbxCount.nonIBD)
 ```
 
 ### Select statistically significant enzymes
@@ -159,7 +182,7 @@ deg.UC.EC <- lapply(strsplit(deg.UC.EC, ":"), "[[", 1)
 deg.CD.EC <- row.names(deg.CD)
 deg.CD.EC <- lapply(strsplit(deg.CD.EC, ":"), "[[", 1)
 
-remove(pAdjust.CD, pAdjust.UC)
+#remove(pAdjust.CD, pAdjust.UC)
 ```
 
 ## Calculate the ORA score for each pathway
