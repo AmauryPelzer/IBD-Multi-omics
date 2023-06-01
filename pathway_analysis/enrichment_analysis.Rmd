@@ -3,25 +3,31 @@ title: "Metagenomics_analysis"
 output: html_notebook
 ---
 
-## Versions
+## Libraries
 
-R version: 4.2.0
+```{r, message=FALSE, warning=FALSE}
+# Check if libraries are already installed > otherwise install it
+if(!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager",repos = "http://cran.us.r-project.org")
+if(!"jsonlite" %in% installed.packages()) BiocManager::install("jsonlite")
+if(!"dplyr" %in% installed.packages()) BiocManager::install("dplyr")
+if(!"ggplot2" %in% installed.packages()) BiocManager::install("ggplot2")
+if(!"DESeq2" %in% installed.packages()) BiocManager::install("DESeq2")
+if(!"clusterProfiler" %in% installed.packages()) BiocManager::install("clusterProfiler")
 
-jsonlite version: 1.8.4
+# Load packages
+library(jsonlite)
+library(dplyr)
+library(DESeq2)
+library(clusterProfiler)
+library(ggplot2)
+```
 
-dplyr version: 1.0.9
-
-ggplot2 version: 3.3.6
 
 ## Data Preparations
 
 The following section will prepare input data to be used in the analysis
 
 ```{r read data,warning=FALSE, message=FALSE}
-library(jsonlite)
-library(dplyr)
-library(ggplot2)
-
 # Sets current path as working file path for all code chuncks
 knitr::opts_knit$set(root.dir = ".")
 
@@ -68,7 +74,7 @@ mgxCount.CD <- subset(mgxCount, select=metaData.CD$External.ID)
 mgxCount.UC <- subset(mgxCount, select=metaData.UC$External.ID)
 mgxCount.nonIBD <- subset(mgxCount, select=metaData.nonIBD$External.ID)
 
-#remove(metaData.CD, metaData.UC, metaData.nonIBD, metaData, mgxCount)
+remove(metaData.CD, metaData.UC, metaData.nonIBD, metaData, mgxCount)
 ```
 
 ### T-tests for Crohn's Disease (CD)
@@ -91,26 +97,7 @@ for(i in 1 : nrow(mgxCount.nonIBD)) { # For each gene :
 # Apply Benjamini Hochberg correction to pvalues to correct for multiple testing
 pAdjust.CD = p.adjust(pValue.CD, method="BH", n= nrow(mgxCount.nonIBD))
 
-#remove(pValue.CD, t, x, y, i)
-```
-
-```{r}
-library("DESeq2")
-
-metaData.nonIBD.CD <- metaData[(metaData$diagnosis=="CD" | metaData$diagnosis=="nonIBD"),]
-mgxCount.nonIBD.CD <- subset(mgxCount, select=metaData.nonIBD.CD$External.ID)
-
-dds.CD <- DESeqDataSetFromMatrix(countData=round(mgxCount.nonIBD.CD), 
-                              colData=metaData.nonIBD.CD, 
-                              design=~diagnosis, tidy = FALSE)
-
-dds.CD <- DESeq(dds.CD)
-
-res.CD <- results(dds.CD)
-summary(res.CD)
-
-n_distinct(which(res.CD$pvalue<0.05))
-n_distinct(which(res.CD$padj<0.05))
+remove(pValue.CD, t, x, y, i)
 ```
 
 
@@ -134,24 +121,7 @@ for(i in 1 : nrow(mgxCount.nonIBD)) { # For each gene :
 # Apply Benjamini Hochberg correction to pvalues to correct for multiple testing
 pAdjust.UC = p.adjust(pValue.UC, method="BH", n= nrow(mgxCount.nonIBD))
 
-remove(pValue.UC, t, x, y, i  )#,mgxCount.nonIBD)
-```
-
-```{r}
-metaData.nonIBD.UC <- metaData[(metaData$diagnosis=="UC" | metaData$diagnosis=="nonIBD"),]
-mgxCount.nonIBD.UC <- subset(mgxCount, select=metaData.nonIBD.UC$External.ID)
-
-dds.UC <- DESeqDataSetFromMatrix(countData=round(mgxCount.nonIBD.UC), 
-                              colData=metaData.nonIBD.UC, 
-                              design=~diagnosis, tidy = FALSE)
-
-dds.UC <- DESeq(dds.UC)
-
-res.UC <- results(dds.UC)
-summary(res.UC)
-
-n_distinct(which(res.UC$pvalue<0.05))
-n_distinct(which(res.UC$padj<0.05))
+remove(pValue.UC, t, x, y, i, mgxCount.nonIBD)
 ```
 
 
@@ -173,16 +143,13 @@ deg.CD.EC <- lapply(strsplit(deg.CD.EC, ":"), "[[", 1)
 remove(pAdjust.CD, pAdjust.UC)
 ```
 
-## Calculate the ORA score for each pathway, using the Fishers exact test
+## Calculate the ORA score for each pathway
 
-Based on: <https://www.pathwaycommons.org/guide/primers/statistics/fishers_exact_test/>
 
 ### ORA score for Ulcerative colitis (UC)
 
 
 ```{r}
-library("clusterProfiler")
-
 deg.nonIBD.EC <- row.names(mgxCount.nonIBD)
 deg.nonIBD.EC <- lapply(strsplit(deg.nonIBD.EC, ":"), "[[", 1)
 
@@ -202,27 +169,6 @@ summary(res)
 ```
 
 
-```{r}
-#Create a dataframe to store the required numbers in.
-Contingency_table.UC <- data.frame(matrix(ncol=5,nrow=0, dimnames=list(NULL, c("EC.PW", "x", "m", "n", "k"))))
-counter = 1
-for (i in 1:length(PW.all.enz)) {
-   Contingency_table.UC[counter,1] <- names(PW.all.enz[i]) #EC.PW
-   Contingency_table.UC[counter,2] <- length(intersect(deg.UC.EC, PW.all.enz[[i]])) ##x <- (number4) #Total differentially changed enzymes, also in a PW.
-   Contingency_table.UC[counter,3] <- length(PW.all.enz[[i]]) ##m <- (number) #Total Enzymes in PW
-   Contingency_table.UC[counter,4] <- nrow(mgxCount.UC) - length(intersect(deg.UC.EC, PW.all.enz[[i]])) ##n <- (number2) #Total Metabolites measured not in PW
-   Contingency_table.UC[counter,5] <- nrow(deg.UC) ##k <- (number3) #Total differentially changed enzymes
-
-   counter <- counter + 1
-}
-
-# Calculate hypergeometric density p-value for all pathways.
-i <- 1:nrow(Contingency_table.UC)
-probabilities.UC <- dhyper(Contingency_table.UC[i,2], Contingency_table.UC[i,3], Contingency_table.UC[i,4], Contingency_table.UC[i,5], log = FALSE)
-
-remove(mgxCount.UC, Contingency_table.UC, deg.UC, deg.UC.EC, counter, i)
-```
-
 ### ORA score for Crohn's Disease (CD)
 
 ```{r}
@@ -233,27 +179,6 @@ res <- enricher(gene=as.factor(unlist(deg.CD.EC)),
 summary(res)
 ```
 
-
-```{r}
-#Create a dataframe to store the required numbers in.
-Contingency_table.CD <- data.frame(matrix(ncol=5,nrow=0, dimnames=list(NULL, c("EC.PW", "x", "m", "n", "k"))))
-counter = 1
-for (i in 1:length(PW.all.enz)) {
-   Contingency_table.CD[counter,1] <- names(PW.all.enz[i]) #EC.PW
-   Contingency_table.CD[counter,2] <- length(intersect(deg.CD.EC, PW.all.enz[[i]])) ##x <- (number4) #Total differentially changed enzymes, also in a PW.
-   Contingency_table.CD[counter,3] <- length(PW.all.enz[[i]]) ##m <- (number) #Total Enzymes in PW
-   Contingency_table.CD[counter,4] <- nrow(mgxCount.CD) - length(intersect(deg.CD.EC, PW.all.enz[[i]])) ##n <- (number2) #Total Metabolites measured not in PW
-   Contingency_table.CD[counter,5] <- nrow(deg.CD) ##k <- (number3) #Total differentially changed enzymes
-
-   counter <- counter + 1
-}
-
-# Calculate hypergeometric density p-value for all pathways.
-i <- 1:nrow(Contingency_table.CD)
-probabilities.CD <- dhyper(Contingency_table.CD[i,2], Contingency_table.CD[i,3], Contingency_table.CD[i,4], Contingency_table.CD[i,5], log = FALSE)
-
-remove(mgxCount.CD, Contingency_table.CD, deg.CD, deg.CD.EC, counter, i)
-```
 
 ## Plot the results in a horizontal bar chart
 
@@ -321,4 +246,12 @@ write.table(PWAnalysis_results_sorted.UC, "output/mgxPWdata_UC.csv", sep =",", r
 # Write the output in a file
 PWAnalysis_results_sorted.CD <- apply(PWAnalysis_results_sorted.CD,2,as.character)
 write.table(PWAnalysis_results_sorted.CD, "output/mgxPWdata_CD.csv", sep =",", row.names = FALSE)
+```
+
+
+## Print session info:
+
+```{r print_session_info}
+##Print session info:
+sessionInfo()
 ```

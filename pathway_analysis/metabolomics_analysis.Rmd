@@ -1,0 +1,190 @@
+---
+title: "Metabolomics_analysis"
+output: html_document
+---
+
+## Libraries
+
+```{r, message=FALSE, warning=FALSE}
+# Check if libraries are already installed > otherwise install it
+if(!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager",repos = "http://cran.us.r-project.org")
+if(!"" %in% installed.packages()) BiocManager::install("")
+if(!"" %in% installed.packages()) BiocManager::install("")
+
+# Load packages
+library()
+library()
+library()
+```
+
+## Generate HMDB.csv for data annotation
+
+This can be skipped...
+
+```{r setup, include=FALSE}
+library(knitr)
+
+# Sets current path as working file path for all code chuncks
+knitr::opts_knit$set(root.dir = ".")
+
+# Read  the metabolomics data file
+mbxCount <- read.table(file = "data/iHMP_metabolomics.tsv", sep = '\t', header = TRUE)
+
+# Read metadata file sample labels
+HMDB <- na.omit(mbxCount$HMDB...Representative.ID.)
+HMDB <- HMDB[nzchar(HMDB)]
+
+write.table(HMDB, "data/HMDB.csv", sep =",", row.names = FALSE)
+```
+
+## Generate mbxData
+
+This can be skipped...
+
+```{r}
+# Read full metabolomics data
+mbxCount <- read.table(file = "data/iHMP_metabolomics.tsv", sep = '\t', header = TRUE)
+# Remove rows with empty HMDB
+mbxCount <- mbxCount[mbxCount$HMDB...Representative.ID. != "", ]
+# Remove rows with "redundant ion" in HMDB column
+mbxCount <- mbxCount[mbxCount$HMDB...Representative.ID. != "redundant ion", ]
+# Remove rows with NA HMDB
+mbxCount <- mbxCount[!is.na(mbxCount$HMDB...Representative.ID.), ]
+# Remove parameters columns from the metabolomics
+mbxCount <- mbxCount[,-c(1:4, 7)]
+# Rename the HMDB column
+colnames(mbxCount)[1] <- "HMDB"
+# Remove "*" suffix in HMDB column
+mbxCount$HMDB <- gsub("\\*", "", mbxCount$HMDB)
+
+# Write the result in a file
+write.table(mbxCount, "data/mbxData", sep ="\t", row.names = FALSE)
+```
+
+## ...
+
+```{r}
+# Read metadata file sample labels
+metaData <- read.table(file = "../analysis/data/metaData", sep = '\t', stringsAsFactors = TRUE, header = TRUE)
+# Read KEGG compound to HMDB list
+compound.HMDB <- read.table(file = "data/compound_hmdb.list", sep = '\t', header = FALSE)
+# Change column names
+colnames(compound.HMDB) <- c("compound", "HMDB", "equivalent")
+# Remove "equivalent" column
+compound.HMDB <- compound.HMDB[, -3]
+# Remove "cpd:" prefix
+compound.HMDB$compound <- gsub("cpd:", "", compound.HMDB$compound)
+# Remove "hmdb:" prefix
+compound.HMDB$HMDB <- gsub("hmdb:", "", compound.HMDB$HMDB)
+```
+
+```{r}
+# Read metabolomics data
+mbxCount <- read.table(file = "data/mbxData", sep = '\t', header = TRUE)
+# Merge the KEGG compound to the full metabolomics data
+mbxCount <- merge(mbxCount, compound.HMDB, by = "HMDB", all.x = TRUE)
+# remove NAs for compounds
+mbxCount <- mbxCount[!is.na(mbxCount$compound), ]
+# Relocate the compound column as first
+mbxCount <- mbxCount %>% relocate(compound)
+# 
+rownames(mbxCount) <- mbxCount[,1]
+```
+
+
+## Filtering Steps
+
+We will apply some filtering process to filter out genes in the input data
+
+```{r filtering,warning=FALSE, message=FALSE}
+# Remove genes which has all zero values for all samples then start DE analysis
+mbxCount[is.na(mbxCount)] <- 0
+nonzero <- rowSums(mbxCount) > 0
+mbxCount <- mbxCount[nonzero,]
+
+remove(nonzero)
+```
+
+## T-tests
+
+```{r}
+# Separate CD, UC and nonIBD
+metaData.CD <- metaData[metaData$diagnosis=="CD",]
+metaData.UC <- metaData[metaData$diagnosis=="UC",]
+metaData.nonIBD <- metaData[metaData$diagnosis=="nonIBD",]
+
+# Select metagenomics data from CD, UC and nonIBD
+mbxCount.CD <- subset(mbxCount, select=metaData.CD$External.ID)
+mbxCount.UC <- subset(mbxCount, select=metaData.UC$External.ID)
+mbxCount.nonIBD <- subset(mbxCount, select=metaData.nonIBD$External.ID)
+
+remove(metaData.CD, metaData.UC, metaData.nonIBD, metaData, mbxCount)
+```
+
+### T-tests for Crohn's Disease (CD)
+
+```{r}
+# Compute statistical significance (using t-test)
+pValue.CD = NULL # Empty list for the p-values
+
+for(i in 1 : nrow(mbxCount.nonIBD)) { # For each gene : 
+	x = mbxCount.nonIBD[i,] # control of gene number i
+	y = mbxCount.CD[i,] # CD of gene number i
+	
+	# Compute t-test between the two conditions
+	t = t.test(x, y)
+	
+	# Put the current p-value in the pvalues list
+	pValue.CD[i] = t$p.value
+}
+
+# Apply Benjamini Hochberg correction to pvalues to correct for multiple testing
+pAdjust.CD = p.adjust(pValue.CD, method="BH", n= nrow(mbxCount.nonIBD))
+
+remove(pValue.CD, t, x, y, i)
+```
+
+### Select statistically significant enzymes
+
+```{r}
+# Select statistically significant enzymes
+deg.CD <- mbxCount.CD[which(pAdjust.CD<0.05),]
+deg.CD$pAdjust <- pAdjust.CD[which(pAdjust.CD<0.05)]
+deg.UC <- mbxCount.UC[which(pAdjust.UC<0.05),]
+deg.UC$pAdjust <- pAdjust.UC[which(pAdjust.UC<0.05)]
+
+# Get the row names and split them at the colon
+deg.UC.EC <- row.names(deg.UC)
+deg.UC.EC <- lapply(strsplit(deg.UC.EC, ":"), "[[", 1)
+deg.CD.EC <- row.names(deg.CD)
+deg.CD.EC <- lapply(strsplit(deg.CD.EC, ":"), "[[", 1)
+
+remove(pAdjust.CD, pAdjust.UC)
+```
+
+## Calculate the ORA score for each pathway
+
+
+### ORA score for Ulcerative colitis (UC)
+
+
+```{r}
+deg.nonIBD.EC <- row.names(mbxCount.nonIBD)
+deg.nonIBD.EC <- lapply(strsplit(deg.nonIBD.EC, ":"), "[[", 1)
+
+PW.to.enzyme <- as.data.frame(t(as.data.frame(sapply(PW.all.enz, rbind))))
+PW.to.enzyme$pathway <- rownames(PW.to.enzyme)
+colnames(PW.to.enzyme) <- c("enzyme", "pathway")
+PW.to.enzyme <- PW.to.enzyme[,c(2,1)]
+PW.to.enzyme$pathway <- sub("\\..*", "", PW.to.enzyme$pathway)
+
+PW.to.name <- data.frame("pathway"=names(PW.all.names), "name"=unlist(PW.all.names))
+
+res <- enricher(gene=as.factor(unlist(deg.UC.EC)),
+                TERM2GENE = PW.to.enzyme,
+                TERM2NAME = PW.to.name)
+
+summary(res)
+```
+
+
