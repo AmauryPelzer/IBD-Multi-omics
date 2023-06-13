@@ -12,7 +12,7 @@ if(!"" %in% installed.packages()) BiocManager::install("")
 if(!"" %in% installed.packages()) BiocManager::install("")
 
 # Load packages
-library()
+library(knitr)
 library()
 library()
 ```
@@ -22,24 +22,135 @@ library()
 This can be skipped...
 
 ```{r setup, include=FALSE, eval=FALSE}
-library(knitr)
-
 # Sets current path as working file path for all code chuncks
 knitr::opts_knit$set(root.dir = ".")
 
 # Read  the metabolomics data file
-mbxCount <- read.table(file = "data/iHMP_metabolomics.tsv", sep = '\t', header = TRUE)
-
+mbxCount <- read.table(file = "../preprocessing/output/mbxData", sep = '\t', header = TRUE)
 # Read metadata file sample labels
-HMDB <- na.omit(mbxCount$HMDB...Representative.ID.)
-HMDB <- HMDB[nzchar(HMDB)]
+metaData <- read.table(file = "../preprocessing/output/mbxMetaData", sep = '\t', stringsAsFactors = TRUE, header = TRUE)
 
-write.table(HMDB, "data/HMDB.csv", sep =",", row.names = FALSE)
+```
+## Filtering Steps
+
+We will apply some filtering process to filter out genes in the input data
+
+```{r filtering,warning=FALSE, message=FALSE}
+# Remove genes which has all zero values for all samples then start DE analysis
+mbxCount[is.na(mbxCount)] <- 0
+nonzero <- rowSums(mbxCount[,c(3:ncol(mbxCount))]) > 0
+mbxCount <- mbxCount[nonzero,]
+
+remove(nonzero)
+```
+
+## T-tests
+
+```{r}
+# Separate CD, UC and nonIBD
+metaData.CD <- metaData[metaData$diagnosis=="CD",]
+metaData.UC <- metaData[metaData$diagnosis=="UC",]
+metaData.nonIBD <- metaData[metaData$diagnosis=="nonIBD",]
+
+# Select metagenomics data from CD, UC and nonIBD
+mbxCount.CD <- subset(mbxCount, select=metaData.CD$External.ID)
+mbxCount.UC <- subset(mbxCount, select=metaData.UC$External.ID)
+mbxCount.nonIBD <- subset(mbxCount, select=metaData.nonIBD$External.ID)
+
+#remove(metaData.CD, metaData.UC, metaData.nonIBD, metaData, mbxCount)
+```
+
+### T-tests for Crohn's Disease (CD)
+
+```{r}
+# Compute statistical significance (using t-test)
+pValue.CD = NULL # Empty list for the p-values
+
+for(i in 1 : nrow(mbxCount.nonIBD)) { # For each gene : 
+	x = mbxCount.nonIBD[i,c(3:ncol(mbxCount.nonIBD))] # control of gene number i
+	y = mbxCount.CD[i,c(3:ncol(mbxCount.CD))] # CD of gene number i
+	
+	# Compute t-test between the two conditions
+	t = t.test(x, y)
+	
+	# Put the current p-value in the pvalues list
+	pValue.CD[i] = t$p.value
+}
+
+# Apply Benjamini Hochberg correction to pvalues to correct for multiple testing
+pAdjust.CD = p.adjust(pValue.CD, method="BH", n= nrow(mbxCount.nonIBD))
+
+#remove(pValue.CD, t, x, y, i)
+```
+
+```{r}
+library("DESeq2")
+
+metaData.nonIBD.CD <- metaData[(metaData$diagnosis=="CD" | metaData$diagnosis=="nonIBD"),]
+mbxCount.nonIBD.CD <- subset(mbxCount, select=metaData.nonIBD.CD$External.ID)
+
+dds.CD <- DESeqDataSetFromMatrix(countData=mbxCount.nonIBD.CD[, c(3:ncol(mbxCount.nonIBD.CD))], 
+                              colData=metaData.nonIBD.CD[,c(1, 3)], 
+                              design=~diagnosis, tidy = FALSE)
+
+dds.CD <- DESeq(dds.CD)
+
+res.CD <- results(dds.CD)
+summary(res.CD)
+
+n_distinct(which(res.CD$pvalue<0.05))
+n_distinct(which(res.CD$padj<0.05))
+```
+
+
+### T-tests for Ulcerative colitis (UC)
+
+```{r}
+# Compute statistical significance (using t-test)
+pValue.UC = NULL # Empty list for the p-values
+
+for(i in 1 : nrow(mbxCount.nonIBD)) { # For each gene : 
+	x = mbxCount.nonIBD[i,] # control of gene number i
+	y = mbxCount.UC[i,] # UC of gene number i
+	
+	# Compute t-test between the two conditions
+	t = t.test(x, y)
+	
+	# Put the current p-value in the pvalues list
+	pValue.UC[i] = t$p.value
+}
+
+# Apply Benjamini Hochberg correction to pvalues to correct for multiple testing
+pAdjust.UC = p.adjust(pValue.UC, method="BH", n= nrow(mbxCount.nonIBD))
+
+remove(pValue.UC, t, x, y, i)
+```
+
+
+### Select statistically significant enzymes
+
+```{r}
+# Select statistically significant enzymes
+deg.CD <- mbxCount.CD[which(pAdjust.CD<0.05),]
+deg.CD$pAdjust <- pAdjust.CD[which(pAdjust.CD<0.05)]
+deg.UC <- mbxCount.UC[which(pAdjust.UC<0.05),]
+deg.UC$pAdjust <- pAdjust.UC[which(pAdjust.UC<0.05)]
+
+# Get the row names and split them at the colon
+deg.UC.EC <- row.names(deg.UC)
+deg.UC.EC <- lapply(strsplit(deg.UC.EC, ":"), "[[", 1)
+deg.CD.EC <- row.names(deg.CD)
+deg.CD.EC <- lapply(strsplit(deg.CD.EC, ":"), "[[", 1)
+
+remove(pAdjust.CD, pAdjust.UC)
 ```
 
 ## Generate mbxData
 
 This can be skipped...
+
+https://tabbassidaloii.shinyapps.io/BridgeDb-Shiny/
+
 
 ```{r, eval=FALSE}
 # Read full metabolomics data
@@ -59,6 +170,9 @@ mbxCount$HMDB <- gsub("\\*", "", mbxCount$HMDB)
 
 # Write the result in a file
 write.table(mbxCount, "data/mbxData", sep ="\t", row.names = FALSE)
+
+
+write.table(mbxCount$HMDB, "data/HMDB.csv", sep = ",", row.names = FALSE, col.names = FALSE, quote = FALSE)
 ```
 
 ## ...

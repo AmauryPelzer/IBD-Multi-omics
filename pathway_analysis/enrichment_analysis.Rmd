@@ -121,7 +121,7 @@ for(i in 1 : nrow(mgxCount.nonIBD)) { # For each gene :
 # Apply Benjamini Hochberg correction to pvalues to correct for multiple testing
 pAdjust.UC = p.adjust(pValue.UC, method="BH", n= nrow(mgxCount.nonIBD))
 
-remove(pValue.UC, t, x, y, i, mgxCount.nonIBD)
+remove(pValue.UC, t, x, y, i)
 ```
 
 
