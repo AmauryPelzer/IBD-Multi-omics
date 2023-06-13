@@ -1,0 +1,121 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Preprocessing step includes filter out samples from metadata of the study
+Since we are only focusing on metabolomics samples
+
+## Install and load required libraries and setup environment
+```{r}
+library(rstudioapi)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(magrittr)
+library(utils)
+```
+
+## Read metadata and filter out samples
+```{r}
+if(file.exists("data/hmp2_metadata.csv")){print("metadata already downloaded")}else{
+fileUrl <- "https://ibdmdb.org/tunnel/products/HMP2/Metadata/hmp2_metadata.csv"
+utils::download.file(fileUrl, "data/hmp2_metadata.csv", mode = "wb")
+}
+#read metadata
+metaData <- read.csv("data/hmp2_metadata.csv")
+#filter out samples by data type column 
+metaData <- metaData[metaData$data_type== "metabolomics",]
+
+#to see how many participants avaliable in each participant/subject in metabolomics data
+groupsParticipant <- metaData %>% group_by(Participant.ID) %>%
+                                  summarise(total_samples = n (),
+                                  .groups = 'drop')
+                                  
+#samples have different visit numbers so we need to take one of them as a baseline
+metaData <- metaData[metaData$visit_num == 4,]
+#filter out unused columns 
+metaData <- metaData [,c("External.ID","Participant.ID","diagnosis")]
+
+```
+
+## Read metabolomics data and filter out by selected samples in metadata
+```{r}
+
+if(file.exists("data/HMP2_metabolomics.csv"))
+  {print("metabolomics data already exist")
+}else
+  {
+  print("ecs data will be downloaded from URL")
+  fileUrl <- "https://ibdmdb.org/tunnel/products/HMP2/Metabolites/1723/HMP2_metabolomics.csv.gz"
+  utils::download.file(fileUrl, "data/HMP2_metabolomics.csv.gz", mode = "wb")
+  R.utils::gunzip("data/HMP2_metabolomics.csv.gz")
+  }
+
+#read metabolomics data 
+mbxData <- read.csv("data/HMP2_metabolomics.csv", sep = ",")
+#optional step having backup before continue
+mbxData.backup <- mbxData 
+# Remove rows with empty HMDB
+mbxData <- mbxData[mbxData$HMDB...Representative.ID. != "", ]
+# Remove rows with "redundant ion" in HMDB column
+mbxData <- mbxData[mbxData$HMDB...Representative.ID. != "redundant ion", ]
+# Remove rows with NA HMDB
+mbxData <- mbxData[!is.na(mbxData$HMDB...Representative.ID.), ]
+# Remove parameters columns from the metabolomics
+mbxData <- mbxData[,-c(1:4, 7)]
+# Rename the HMDB column
+colnames(mbxData)[1] <- "HMDB"
+# Remove "*" suffix in HMDB column
+mbxData$HMDB <- gsub("\\*", "", mbxData$HMDB)
+
+```
+
+## Organize metaData and metabolomics data 
+```{r}
+# store mbxData without the first two columns as tmp
+tmp <- mbxData[,c(3:ncol(mbxData))]
+
+#select samples that only exist in metadata
+tmp <- tmp[names(tmp) %in% metaData$External.ID]
+
+#there is no sample which does not exist in metadata
+#see difference between two sample vectors
+notExistSample <- setdiff( metaData$External.ID,colnames(tmp))
+
+#order both metaData and mbxData based on sample names
+metaData <- metaData[order(metaData$External.ID),]
+tmp <- tmp[,order(colnames (tmp))]
+# Check whether sample names are in same order
+all(colnames(tmp) == metaData$External.ID)
+
+#bind first two columns to the tmp data again 
+mbxData <- cbind(mbxData[,c(1:2)],tmp  )
+
+```
+## Filter out metabolites which has all zero values across all samples or samples across all metabolites
+```{r}
+#remove metabolomics which have all zero values across all samples then start DE analysis
+BACKUP <- mbxData
+
+#convert character data frame to a numeric data frame
+tmp <- as.data.frame(sapply(mbxData[,c(3:ncol(mbxData))], as.numeric))
+mbxData <- cbind(mbxData[,c(1:2)],tmp)
+
+# assign 0 value to NA values in the data frame
+mbxData[is.na(mbxData)] <- 0
+#detect which rows have a total row sum >  0 
+nonzero <- rowSums(mbxData[,c(3:ncol(mbxData))]) > 0
+#then take only these rows
+mbxData %<>% .[nonzero,]
+
+```
+
+## Export preprocessed data to file
+```{r}
+write.table(metaData, "output/mbxMetaData", sep = "\t",row.names = FALSE,quote=FALSE)
+write.table(mbxData, "output/mbxData", sep = "\t",row.names = FALSE,quote=FALSE )
+write.table(mbxData$HMDB, "output/HMDB.csv", sep = ",", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+```
+
