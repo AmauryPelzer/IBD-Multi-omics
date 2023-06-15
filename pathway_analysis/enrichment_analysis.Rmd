@@ -161,22 +161,22 @@ PW.to.enzyme$pathway <- sub("\\..*", "", PW.to.enzyme$pathway)
 
 PW.to.name <- data.frame("pathway"=names(PW.all.names), "name"=unlist(PW.all.names))
 
-res <- enricher(gene=as.factor(unlist(deg.UC.EC)),
+res.UC <- enricher(gene=as.factor(unlist(deg.UC.EC)),
                 TERM2GENE = PW.to.enzyme,
                 TERM2NAME = PW.to.name)
 
-summary(res)
+summary(res.UC)
 ```
 
 
 ### ORA score for Crohn's Disease (CD)
 
 ```{r}
-res <- enricher(gene=as.factor(unlist(deg.CD.EC)),
+res.CD <- enricher(gene=as.factor(unlist(deg.CD.EC)),
                 TERM2GENE = PW.to.enzyme,
                 TERM2NAME = PW.to.name)
 
-summary(res)
+summary(res.CD)
 ```
 
 
@@ -184,28 +184,16 @@ summary(res)
 
 ### Plot for Ulcerative colitis (UC)
 
+
 ```{r}
-PW.all.names <- as.matrix(PW.all.names)
-
-# Create a dataframe for the results of the pathway analysis
-PW_Analysis_results.UC <- data.frame(names(PW.all.enz), PW.all.names, probabilities.UC, lengths(PW.all.enz))
-colnames(PW_Analysis_results.UC) <- c("EC_code", "name", "probabilities", "count")
-
-# Order pathway analysis results by p-values
-PWAnalysis_results_sorted.UC <- PW_Analysis_results.UC[with(PW_Analysis_results.UC, order(probabilities)),]
-
-remove(PW_Analysis_results.UC, probabilities.UC)
-```
-
-```{r fig.height = 15, fig.width = 9}
 # Horizontal bar plot of significant pathways in UC
-PWAnalysis_results_sorted.UC[which(PWAnalysis_results_sorted.UC$probabilities < 0.05),] %>% 
-  ggplot(aes(reorder(as.character(name), count), count)) + 
-  geom_col(aes(fill = probabilities)) + 
+res.UC[which(res.UC$p.adjust < 0.05),] %>% 
+  ggplot(aes(reorder(as.character(Description), Count), Count)) + 
+  geom_col(aes(fill = p.adjust)) + 
   scale_fill_gradient2(low = "#0000ff", 
                        mid = "#ff0000",
                        high= "yellow",
-                       midpoint = 0.01) +
+                       midpoint = 0.001) +
   coord_flip() + 
   labs(x = "Pathways (UC)", y = "Enzyme count")
 ```
@@ -213,39 +201,25 @@ PWAnalysis_results_sorted.UC[which(PWAnalysis_results_sorted.UC$probabilities < 
 ### Plot for Crohn's Disease (CD)
 
 ```{r}
-# Create a dataframe for the results of the pathway analysis
-PW_Analysis_results.CD <- data.frame(names(PW.all.enz), PW.all.names, probabilities.CD, lengths(PW.all.enz))
-colnames(PW_Analysis_results.CD) <- c("EC_code", "name", "probabilities", "count")
-
-# Order pathway analysis results by p-values
-PWAnalysis_results_sorted.CD <- PW_Analysis_results.CD[with(PW_Analysis_results.CD, order(probabilities)),]
-
-remove(PW_Analysis_results.CD, probabilities.CD, PW.all.names, PW.all.enz)
-```
-
-```{r fig.height = 15, fig.width = 9}
-# Horizontal bar plot of significant pathways in CD
-PWAnalysis_results_sorted.CD[which(PWAnalysis_results_sorted.CD$probabilities < 0.05),] %>% 
-  ggplot(aes(reorder(as.character(name), count), count)) + 
-  geom_col(aes(fill = probabilities)) + 
+res.CD[which(res.CD$p.adjust < 0.05),] %>% 
+  ggplot(aes(reorder(as.character(Description), Count), Count)) + 
+  geom_col(aes(fill = p.adjust)) + 
   scale_fill_gradient2(low = "#0000ff", 
                        mid = "#ff0000",
                        high= "yellow",
-                       midpoint = 0.01) +
+                       midpoint = 0.001) +
   coord_flip() + 
-  labs(x = "Pathways (CD)", y = "Enzyme count")
+  labs(x = "Pathways (UC)", y = "Enzyme count")
 ```
 
 ## Writing output tables in csv file
 
 ```{r}
 # Write the output in a file
-PWAnalysis_results_sorted.UC <- apply(PWAnalysis_results_sorted.UC,2,as.character)
-write.table(PWAnalysis_results_sorted.UC, "output/mgxPWdata_UC.csv", sep =",", row.names = FALSE)
+write.table(res.UC, "output/mgxPWdata_UC.csv", sep =",", row.names = FALSE)
 
 # Write the output in a file
-PWAnalysis_results_sorted.CD <- apply(PWAnalysis_results_sorted.CD,2,as.character)
-write.table(PWAnalysis_results_sorted.CD, "output/mgxPWdata_CD.csv", sep =",", row.names = FALSE)
+write.table(res.CD, "output/mgxPWdata_CD.csv", sep =",", row.names = FALSE)
 ```
 
 
