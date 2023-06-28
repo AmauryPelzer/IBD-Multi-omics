@@ -51,6 +51,16 @@ mbxCount[is.na(mbxCount)] <- 0
 nonzero <- rowSums(mbxCount[,c(3:ncol(mbxCount))]) > 0
 mbxCount <- mbxCount[nonzero,]
 
+removeLines <- rowSums(is.na(mbxCount[,3:ncol(mbxCount)]))
+fifty_percent <- floor((ncol(mbxCount))/2)
+
+MissingDataCounted <- cbind(mbxCount, removeLines)
+NoMissingData <- subset(MissingDataCounted, removeLines <= fifty_percent)
+#Remove last column for further processing.
+NoMissingData <- subset(NoMissingData, select=-c(removeLines))
+
+NoMissingData[, c(3:ncol(NoMissingData))] <- apply(NoMissingData[, c(3:ncol(NoMissingData))],2, function(x) as.numeric(as.character(x)))
+
 remove(nonzero)
 ```
 
@@ -67,18 +77,27 @@ mbxCount.CD <- subset(mbxCount, select=metaData.CD$External.ID)
 mbxCount.UC <- subset(mbxCount, select=c(1,2, metaData.UC$External.ID))
 mbxCount.nonIBD <- subset(mbxCount, select=c(1,2, metaData.nonIBD$External.ID))
 
+mbxCount.log.CD <- cbind(mbxCount.CD[,c(1,2)], log2(mbxCount.CD[,3:ncol(mbxCount.CD)]+1))
+mbxCount.log.UC <- cbind(mbxCount.UC[,c(1,2)], log2(mbxCount.UC[,3:ncol(mbxCount.UC)]+1))
+mbxCount.log.nonIBD <- cbind(mbxCount.nonIBD[,c(1,2)], log2(mbxCount.nonIBD[,3:ncol(mbxCount.nonIBD)]+1))
+
+
 #remove(metaData.CD, metaData.UC, metaData.nonIBD, metaData, mbxCount)
 ```
 
 ### T-tests for Crohn's Disease (CD)
 
+
 ```{r}
 # Compute statistical significance (using t-test)
 pValue.CD = NULL # Empty list for the p-values
 
-for(i in 1 : nrow(mbxCount.nonIBD)) { # For each metabolite : 
-	x = mbxCount.nonIBD[i,-(1:2)] # control of metabolite number i
-	y = mbxCount.CD[i,-(1:2)] # CD of metabolite number i
+for(i in 1 : nrow(mbxCount.log.nonIBD)) { # For each metabolite : 
+	x = mbxCount.log.nonIBD[i,-(1:2)] # control of metabolite number i
+	y = mbxCount.log.CD[i,-(1:2)] # CD of metabolite number i
+	
+	#x = x[is.finite(x)]
+	#y = y[is.finite(y)]
 	
 	# Compute t-test between the two conditions
 	t = t.test(x, y)
@@ -93,25 +112,6 @@ pAdjust.CD = p.adjust(pValue.CD, method="BH", n= nrow(mbxCount.nonIBD))
 #remove(pValue.CD, t, x, y, i)
 ```
 
-```{r eval=FALSE}
-library("DESeq2")
-
-metaData.nonIBD.CD <- metaData[(metaData$diagnosis=="CD" | metaData$diagnosis=="nonIBD"),]
-mbxCount.nonIBD.CD <- subset(mbxCount, select=metaData.nonIBD.CD$External.ID)
-
-dds.CD <- DESeqDataSetFromMatrix(countData=mbxCount.nonIBD.CD[, c(3:ncol(mbxCount.nonIBD.CD))], 
-                              colData=metaData.nonIBD.CD[,c(1, 3)], 
-                              design=~diagnosis, tidy = FALSE)
-
-dds.CD <- DESeq(dds.CD)
-
-res.CD <- results(dds.CD)
-summary(res.CD)
-
-n_distinct(which(res.CD$pvalue<0.05))
-n_distinct(which(res.CD$padj<0.05))
-```
-
 
 ### T-tests for Ulcerative colitis (UC)
 
@@ -119,9 +119,9 @@ n_distinct(which(res.CD$padj<0.05))
 # Compute statistical significance (using t-test)
 pValue.UC = NULL # Empty list for the p-values
 
-for(i in 1 : nrow(mbxCount.nonIBD)) { # For each gene : 
-	x = mbxCount.nonIBD[i,-(1:2)] # control of gene number i
-	y = mbxCount.UC[i,-(1:2)] # UC of gene number i
+for(i in 1 : nrow(mbxCount.log.nonIBD)) { # For each gene : 
+	x = mbxCount.log.nonIBD[i,-(1:2)] # control of gene number i
+	y = mbxCount.log.UC[i,-(1:2)] # UC of gene number i
 	
 	# Compute t-test between the two conditions
 	t = t.test(x, y)
@@ -209,7 +209,7 @@ res.UC <- enricher(gene=as.factor(unlist(deg.UC)),
                 TERM2GENE = PW.to.compound,
                 TERM2NAME = PW.to.name)
 
-summary(res.UC)
+as.data.frame(res.UC)
 ```
 
 
@@ -220,7 +220,7 @@ res.CD <- enricher(gene=as.factor(unlist(deg.CD)),
                 TERM2GENE = PW.to.compound,
                 TERM2NAME = PW.to.name)
 
-summary(res.CD)
+as.data.frame(res.CD)
 ```
 
 ## Plot the results in a horizontal bar chart
