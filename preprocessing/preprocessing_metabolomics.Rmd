@@ -55,7 +55,7 @@ if(file.exists("data/HMP2_metabolomics.csv"))
 #read metabolomics data 
 mbxData <- read.csv("data/HMP2_metabolomics.csv", sep = ",")
 #optional step having backup before continue
-mbxData.backup <- mbxData 
+mbxData.backup <- mbxData
 # Remove rows with empty HMDB
 mbxData <- mbxData[mbxData$HMDB...Representative.ID. != "", ]
 # Remove rows with "redundant ion" in HMDB column

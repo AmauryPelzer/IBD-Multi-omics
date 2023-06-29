@@ -1,6 +1,8 @@
 ---
 title: "Metagenomics_analysis"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 ## Libraries

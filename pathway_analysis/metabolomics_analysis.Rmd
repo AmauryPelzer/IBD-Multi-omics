@@ -39,7 +39,6 @@ metaData <- read.table(file = "../preprocessing/output/mbxMetaData", sep = '\t',
 PW.to.compound <- fromJSON("data/all_pathways_compounds_dict.json")
 # Read JSON file with all the pathways codes and their names within into R object
 PW.all.names <- fromJSON("data/ec_pathway_names_dict.json")
-
 ```
 ## Filtering Steps
 
@@ -51,17 +50,16 @@ mbxCount[is.na(mbxCount)] <- 0
 nonzero <- rowSums(mbxCount[,c(3:ncol(mbxCount))]) > 0
 mbxCount <- mbxCount[nonzero,]
 
+# Remove rows with more than 50% of 0 values
 removeLines <- rowSums(is.na(mbxCount[,3:ncol(mbxCount)]))
 fifty_percent <- floor((ncol(mbxCount))/2)
-
 MissingDataCounted <- cbind(mbxCount, removeLines)
 NoMissingData <- subset(MissingDataCounted, removeLines <= fifty_percent)
 #Remove last column for further processing.
 NoMissingData <- subset(NoMissingData, select=-c(removeLines))
-
 NoMissingData[, c(3:ncol(NoMissingData))] <- apply(NoMissingData[, c(3:ncol(NoMissingData))],2, function(x) as.numeric(as.character(x)))
 
-remove(nonzero)
+remove(nonzero, removeLines, fifty_percent, MissingDataCounted)
 ```
 
 ## T-tests
@@ -73,16 +71,16 @@ metaData.UC <- metaData[metaData$diagnosis=="UC",]
 metaData.nonIBD <- metaData[metaData$diagnosis=="nonIBD",]
 
 # Select metagenomics data from CD, UC and nonIBD
-mbxCount.CD <- subset(mbxCount, select=metaData.CD$External.ID)
-mbxCount.UC <- subset(mbxCount, select=c(1,2, metaData.UC$External.ID))
-mbxCount.nonIBD <- subset(mbxCount, select=c(1,2, metaData.nonIBD$External.ID))
+mbxCount.CD <- subset(NoMissingData, select=metaData.CD$External.ID)
+mbxCount.UC <- subset(NoMissingData, select=c(1,2, metaData.UC$External.ID))
+mbxCount.nonIBD <- subset(NoMissingData, select=c(1,2, metaData.nonIBD$External.ID))
 
+# Normalization using natural logarithm
 mbxCount.log.CD <- cbind(mbxCount.CD[,c(1,2)], log2(mbxCount.CD[,3:ncol(mbxCount.CD)]+1))
 mbxCount.log.UC <- cbind(mbxCount.UC[,c(1,2)], log2(mbxCount.UC[,3:ncol(mbxCount.UC)]+1))
 mbxCount.log.nonIBD <- cbind(mbxCount.nonIBD[,c(1,2)], log2(mbxCount.nonIBD[,3:ncol(mbxCount.nonIBD)]+1))
 
-
-#remove(metaData.CD, metaData.UC, metaData.nonIBD, metaData, mbxCount)
+remove(metaData.CD, metaData.UC, metaData.nonIBD, metaData, mbxCount, NoMissingData, mbxCount.CD, mbxCount.UC, mbxCount.nonIBD)
 ```
 
 ### T-tests for Crohn's Disease (CD)
@@ -107,9 +105,10 @@ for(i in 1 : nrow(mbxCount.log.nonIBD)) { # For each metabolite :
 }
 
 # Apply Benjamini Hochberg correction to pvalues to correct for multiple testing
-pAdjust.CD = p.adjust(pValue.CD, method="BH", n= nrow(mbxCount.nonIBD))
+#pAdjust.CD = p.adjust(pValue.CD, method="BH", n= nrow(mbxCount.nonIBD))
 
-#remove(pValue.CD, t, x, y, i)
+#print(length(which(pValue.CD<0.05)))
+remove(t, x, y, i)
 ```
 
 
@@ -131,9 +130,11 @@ for(i in 1 : nrow(mbxCount.log.nonIBD)) { # For each gene :
 }
 
 # Apply Benjamini Hochberg correction to pvalues to correct for multiple testing
-pAdjust.UC = p.adjust(pValue.UC, method="BH", n= nrow(mbxCount.nonIBD))
+#pAdjust.UC = p.adjust(pValue.UC, method="BH", n= nrow(mbxCount.nonIBD))
 
-#remove(pValue.UC, t, x, y, i)
+#print(length(which(pValue.UC<0.05)))
+
+remove(t, x, y, i)
 ```
 
 
@@ -141,38 +142,36 @@ pAdjust.UC = p.adjust(pValue.UC, method="BH", n= nrow(mbxCount.nonIBD))
 
 ```{r}
 # Select statistically significant enzymes
-deg.CD <- mbxCount.CD[which(pValue.CD<0.05),]
+deg.CD <- mbxCount.log.CD[which(pValue.CD<0.05),]
 deg.CD$pValue <- pValue.CD[which(pValue.CD<0.05)]
-deg.UC <- mbxCount.UC[which(pValue.UC<0.05),]
+deg.UC <- mbxCount.log.UC[which(pValue.UC<0.05),]
 deg.UC$pValue <- pValue.UC[which(pValue.UC<0.05)]
 
-#remove(pAdjust.CD, pAdjust.UC)
+remove(pValue.CD, pValue.UC)
 ```
 
 ## Generate mbxData
 
-This can be skipped...
+The following Shinyapp was used to map HMDB IDs to KEGG IDs
 
 https://tabbassidaloii.shinyapps.io/BridgeDb-Shiny/
 
 
-## ...
-
 ```{r}
-# Read metadata file sample labels
-#metaData <- read.table(file = "../preprocessing/output/mbxMetaData", sep = '\t', stringsAsFactors = TRUE, header = TRUE)
 # Read KEGG compound to HMDB list
 compound.HMDB <- read.table(file = "data/XrefBatch_mapping_BridgeDB-Shiny.csv", sep = ',', header = TRUE)
 # Remove ... columns
 compound.HMDB <- compound.HMDB[, -c(2,4)]
 # Change column names
 colnames(compound.HMDB) <- c("HMDB", "compound")
+
+remove(mbxCount.log.CD, mbxCount.log.UC, mbxCount.log.nonIBD)
 ```
 
 ```{r}
 # Merge the KEGG compound to the full metabolomics data
 deg.CD <- merge(deg.CD, compound.HMDB, by = "HMDB", all.x = TRUE)
-length(which(is.na(deg.CD)))
+#length(which(is.na(deg.CD$compound)))
 # remove NAs for compounds
 deg.CD <- deg.CD[!is.na(deg.CD$compound), ]
 # Relocate the compound column as first
@@ -180,12 +179,13 @@ deg.CD <- deg.CD %>% relocate(compound)
 
 # Merge the KEGG compound to the full metabolomics data
 deg.UC <- merge(deg.UC, compound.HMDB, by = "HMDB", all.x = TRUE)
-length(which(is.na(deg.UC)))
+#length(which(is.na(deg.UC$compound)))
 # remove NAs for compounds
 deg.UC <- deg.UC[!is.na(deg.UC$compound), ]
 # Relocate the compound column as first
 deg.UC <- deg.UC %>% relocate(compound)
 
+remove(compound.HMDB)
 ```
 
 ## Calculate the ORA score for each pathway
@@ -195,7 +195,7 @@ deg.UC <- deg.UC %>% relocate(compound)
 
 
 ```{r}
-
+# Transform PW to compound for further analysis
 PW.to.compound <- as.data.frame(t(as.data.frame(sapply(PW.to.compound, rbind))))
 PW.to.compound$pathway <- rownames(PW.to.compound)
 colnames(PW.to.compound) <- c("compound", "pathway")
@@ -205,6 +205,7 @@ PW.to.compound$compound <- sub("\\s\\s.*", "", PW.to.compound$compound)
 
 PW.to.name <- data.frame("pathway"=names(PW.all.names), "name"=unlist(PW.all.names))
 
+# Perform Pathway enrichment
 res.UC <- enricher(gene=as.factor(unlist(deg.UC)),
                 TERM2GENE = PW.to.compound,
                 TERM2NAME = PW.to.name)
@@ -216,6 +217,7 @@ as.data.frame(res.UC)
 ### ORA score for Crohn's Disease (CD)
 
 ```{r}
+# Perform Pathway enrichment
 res.CD <- enricher(gene=as.factor(unlist(deg.CD)),
                 TERM2GENE = PW.to.compound,
                 TERM2NAME = PW.to.name)
