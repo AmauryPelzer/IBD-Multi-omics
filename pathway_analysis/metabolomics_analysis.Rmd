@@ -71,16 +71,24 @@ metaData.UC <- metaData[metaData$diagnosis=="UC",]
 metaData.nonIBD <- metaData[metaData$diagnosis=="nonIBD",]
 
 # Select metagenomics data from CD, UC and nonIBD
-mbxCount.CD <- subset(NoMissingData, select=metaData.CD$External.ID)
-mbxCount.UC <- subset(NoMissingData, select=c(1,2, metaData.UC$External.ID))
-mbxCount.nonIBD <- subset(NoMissingData, select=c(1,2, metaData.nonIBD$External.ID))
+mbxCount.CD <- NoMissingData %>%
+  select(HMDB, Metabolite, all_of(metaData.CD$External.ID))
+mbxCount.UC <- NoMissingData %>%
+  select(HMDB, Metabolite, all_of(metaData.UC$External.ID))
+mbxCount.nonIBD <- NoMissingData %>%
+  select(HMDB, Metabolite, all_of(metaData.nonIBD$External.ID))
 
 # Normalization using natural logarithm
 mbxCount.log.CD <- cbind(mbxCount.CD[,c(1,2)], log2(mbxCount.CD[,3:ncol(mbxCount.CD)]+1))
 mbxCount.log.UC <- cbind(mbxCount.UC[,c(1,2)], log2(mbxCount.UC[,3:ncol(mbxCount.UC)]+1))
 mbxCount.log.nonIBD <- cbind(mbxCount.nonIBD[,c(1,2)], log2(mbxCount.nonIBD[,3:ncol(mbxCount.nonIBD)]+1))
 
-remove(metaData.CD, metaData.UC, metaData.nonIBD, metaData, mbxCount, NoMissingData, mbxCount.CD, mbxCount.UC, mbxCount.nonIBD)
+# Check that no columns was lost
+setdiff(metaData.nonIBD$External.ID, colnames(mbxCount.log.nonIBD))
+setdiff(metaData.CD$External.ID, colnames(mbxCount.log.CD))
+setdiff(metaData.UC$External.ID, colnames(mbxCount.log.UC))
+
+#remove(metaData.CD, metaData.UC, metaData.nonIBD, mbxCount, NoMissingData, mbxCount.CD, mbxCount.UC, mbxCount.nonIBD)
 ```
 
 ### T-tests for Crohn's Disease (CD)
